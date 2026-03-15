@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Movie Magic | Premium Booking{% endblock %}</title>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #d9232d;
+            --primary-dark: #b71c24;
+            --secondary: #1a1a1a;
+            --accent: #ffd700;
+            --bg: #0f0f0f;
+            --card-bg: #1e1e1e;
+            --text-main: #ffffff;
+            --text-muted: #a0a0a0;
+            --glass: rgba(255, 255, 255, 0.05);
+            --glass-border: rgba(255, 255, 255, 0.1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background-color: var(--bg);
+            color: var(--text-main);
+            overflow-x: hidden;
+            line-height: 1.6;
+        }
+
+        /* Navbar Styling */
+        nav {
+            background: rgba(15, 15, 15, 0.8);
+            backdrop-filter: blur(10px);
+            padding: 20px 5%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            border-bottom: 1px solid var(--glass-border);
+        }
+
+        .logo {
+            font-family: 'Playfair Display', serif;
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--primary);
+            text-decoration: none;
+            letter-spacing: 1px;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 30px;
+        }
+
+        .nav-links a {
+            color: var(--text-main);
+            text-decoration: none;
+            font-weight: 600;
+            transition: color 0.3s;
+        }
+
+        .nav-links a:hover {
+            color: var(--primary);
+        }
+
+        /* Global Container */
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 40px 5%;
+        }
+
+        /* Buttons */
+        .btn {
+            padding: 12px 28px;
+            border-radius: 50px;
+            font-weight: 600;
+            text-decoration: none;
+            display: inline-block;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            cursor: pointer;
+            border: none;
+        }
+
+        .btn-primary {
+            background: linear-gradient(45deg, var(--primary), #ff4d4d);
+            color: white;
+            box-shadow: 0 4px 15px rgba(217, 35, 45, 0.4);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(217, 35, 45, 0.6);
+        }
+
+        /* Glassmorphism Cards */
+        .glass-card {
+            background: var(--glass);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+            padding: 30px;
+        }
+
+        /* Animations */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .animate-fade {
+            animation: fadeIn 0.8s forwards;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .nav-links { display: none; }
+        }
+    </style>
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <nav>
+        <a href="/" class="logo">MOVIE MAGIC</a>
+        <div class="nav-links">
+            <a href="/">Home</a>
+            <a href="/explore/">Explore Movies</a>
+            {% if user.is_authenticated %}
+                <a href="/api/my-bookings/">My Bookings</a>
+            {% endif %}
+            <a href="/analytics-dashboard/">Admin Dashboard</a>
+        </div>
+        <div class="user-actions" style="display: flex; align-items: center; gap: 20px;">
+            {% if user.is_authenticated %}
+                <span style="font-size: 14px; color: var(--text-muted);">Hello, <strong>{{ user.username }}</strong></span>
+                <a href="{% url 'logout' %}" style="color: var(--text-main); text-decoration: none; font-size: 14px; font-weight: 600;">Logout</a>
+            {% else %}
+                <a href="{% url 'login' %}" style="color: var(--text-main); text-decoration: none; font-size: 14px; font-weight: 600;">Sign In</a>
+                <a href="{% url 'signup' %}" class="btn btn-primary" style="padding: 8px 20px; font-size: 14px;">Sign Up</a>
+            {% endif %}
+        </div>
+    </nav>
+
+    <main>
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer style="padding: 60px 5%; background: #0a0a0a; border-top: 1px solid var(--glass-border); margin-top: 100px; text-align: center;">
+        <p style="color: var(--text-muted);">&copy; 2026 Movie Magic Inc. All Rights Reserved.</p>
+    </footer>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

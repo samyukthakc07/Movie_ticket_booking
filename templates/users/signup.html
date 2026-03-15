@@ -1,0 +1,124 @@
+{% extends 'base.html' %}
+
+{% block title %}Create Account | Movie Magic{% endblock %}
+
+{% block extra_css %}
+<style>
+    .auth-container {
+        max-width: 450px;
+        margin: 80px auto;
+    }
+
+    .auth-card {
+        padding: 50px;
+        text-align: center;
+    }
+
+    .auth-card h1 {
+        font-family: 'Playfair Display', serif;
+        font-size: 36px;
+        margin-bottom: 30px;
+    }
+
+    .auth-form {
+        text-align: left;
+    }
+
+    .form-group {
+        margin-bottom: 25px;
+    }
+
+    .form-group label {
+        display: block;
+        margin-bottom: 8px;
+        font-size: 14px;
+        color: var(--text-muted);
+    }
+
+    .form-group input {
+        width: 100%;
+        padding: 12px 20px;
+        background: var(--glass);
+        border: 1px solid var(--glass-border);
+        border-radius: 12px;
+        color: white;
+        outline: none;
+        transition: 0.3s;
+    }
+
+    .form-group input:focus {
+        border-color: var(--primary);
+        background: rgba(255, 255, 255, 0.08);
+    }
+
+    .helptext {
+        display: block;
+        font-size: 11px;
+        color: var(--text-muted);
+        margin-top: 5px;
+        line-height: 1.4;
+    }
+
+    .auth-links {
+        margin-top: 30px;
+        font-size: 14px;
+        color: var(--text-muted);
+    }
+
+    .auth-links a {
+        color: var(--primary);
+        text-decoration: none;
+        font-weight: 600;
+    }
+
+    .errorlist {
+        list-style: none;
+        color: #ff4d4d;
+        font-size: 12px;
+        margin-top: 5px;
+        padding: 0;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container animate-fade">
+    <div class="auth-container">
+        <div class="glass-card auth-card">
+            <h1>Join Movie Magic</h1>
+            <p style="color: var(--text-muted); margin-bottom: 40px;">Create an account to start booking.</p>
+
+            <form method="POST" class="auth-form">
+                {% csrf_token %}
+                
+                {% if messages %}
+                    {% for message in messages %}
+                        <p style="color: {% if message.tags == 'error' %}#ff4d4d{% else %}#4ade80{% endif %}; font-size: 13px; margin-bottom: 20px;">
+                            {{ message }}
+                        </p>
+                    {% endfor %}
+                {% endif %}
+
+                {% for field in form %}
+                    <div class="form-group">
+                        <label>{{ field.label }}</label>
+                        <input type="{{ field.field.widget.input_type|default:'text' }}" name="{{ field.html_name }}" required>
+                        {% if field.help_text %}
+                            <span class="helptext">{{ field.help_text|safe }}</span>
+                        {% endif %}
+                        {% if field.errors %}
+                            {{ field.errors }}
+                        {% endif %}
+                    </div>
+                {% endfor %}
+
+                <button type="submit" class="btn btn-primary" style="width: 100%; padding: 15px;">Create Account</button>
+            </form>
+
+            <div class="auth-links">
+                Already have an account? <a href="{% url 'login' %}">Sign In</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

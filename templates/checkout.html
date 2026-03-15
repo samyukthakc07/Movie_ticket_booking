@@ -1,0 +1,209 @@
+{% extends 'base.html' %}
+
+{% block title %}Checkout | Movie Magic{% endblock %}
+
+{% block extra_css %}
+<style>
+    .checkout-container {
+        max-width: 800px;
+        margin: 60px auto;
+        display: grid;
+        grid-template-columns: 1fr 320px;
+        gap: 40px;
+    }
+
+    .summary-card h2 {
+        margin-bottom: 25px;
+        font-family: 'Playfair Display', serif;
+    }
+
+    .item-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 15px 0;
+        border-bottom: 1px solid var(--glass-border);
+    }
+
+    .total-row {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 30px;
+        font-size: 24px;
+        font-weight: 700;
+        color: var(--primary);
+    }
+
+    .payment-methods {
+        margin-top: 40px;
+    }
+
+    .method-card {
+        background: var(--glass);
+        border: 1px solid var(--primary);
+        padding: 20px;
+        border-radius: 15px;
+        display: flex;
+        align-items: center;
+        gap: 15px;
+    }
+</style>
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="checkout-container animate-fade">
+        <div class="main-checkout">
+            <div class="glass-card summary-card">
+                <h2>Review Your Order</h2>
+                
+                <div class="item-row">
+                    <span>Movie</span>
+                    <strong>{{ booking.show.movie.title }}</strong>
+                </div>
+                <div class="item-row">
+                    <span>Showtime</span>
+                    <strong>{{ booking.show.show_time|date:"D, M d - h:i A" }}</strong>
+                </div>
+                <div class="item-row">
+                    <span>Theater</span>
+                    <strong>{{ booking.show.screen.theater.name }}</strong>
+                </div>
+                <div class="item-row">
+                    <span>Seats</span>
+                    <strong>{% for seat in booking.seats.all %}{{ seat.seat_number }}{% if not forloop.last %}, {% endif %}{% endfor %}</strong>
+                </div>
+
+                <div class="total-row">
+                    <span>Total Amount</span>
+                    <span>${{ booking.total_amount }}</span>
+                </div>
+            </div>
+
+            <div class="payment-methods">
+                <h3 style="margin-bottom: 20px;">Secure Payment</h3>
+                <div class="method-card">
+                    <div style="font-size: 24px;">💳</div>
+                    <div>
+                        <strong>Razorpay Secure</strong>
+                        <p style="font-size: 12px; color: var(--text-muted);">Cards, UPI, Netbanking, Wallets</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <aside>
+            <div class="glass-card" style="text-align: center;">
+                <p style="color: var(--text-muted); margin-bottom: 10px;">Safe & Secure</p>
+                <p style="font-size: 12px; margin-bottom: 30px;">Your transaction is protected with 256-bit SSL encryption.</p>
+                <button class="btn btn-primary" style="width: 100%; padding: 20px;" id="payButton">
+                    Pay Now
+                </button>
+            </div>
+        </aside>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const payButton = document.getElementById('payButton');
+
+    payButton.addEventListener('click', async () => {
+        payButton.disabled = true;
+        payButton.innerText = 'Initializing...';
+
+        try {
+            const response = await fetch('/api/create-razorpay-order/', {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: JSON.stringify({ booking_id: '{{ booking.id }}' })
+            });
+            const data = await response.json();
+
+            if (data.order_id) {
+                if (data.mock) {
+                    console.log("Mock Mode: Skipping Razorpay UI");
+                    // In mock mode, we simulate a successful payment locally
+                    const verifyRes = await fetch('/api/verify-payment/', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': '{{ csrf_token }}'
+                        },
+                        body: JSON.stringify({
+                            razorpay_order_id: data.order_id,
+                            razorpay_payment_id: 'pay_mock_' + Math.random().toString(36).substr(2, 9),
+                            razorpay_signature: 'mock_signature'
+                        })
+                    });
+                    const verifyData = await verifyRes.json();
+                    if (verifyData.status === 'success') {
+                        window.location.href = '/api/payment-success/';
+                    } else {
+                        alert('Mock Verification failed: ' + verifyData.error);
+                        location.reload();
+                    }
+                    return;
+                }
+
+                const options = {
+                    "key": data.key_id,
+                    "amount": data.amount,
+                    "currency": data.currency,
+                    "name": data.name,
+                    "description": data.description,
+                    "order_id": data.order_id,
+                    "handler": async function (response) {
+                        // After successful payment, verify it on server
+                        const verifyRes = await fetch('/api/verify-payment/', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRFToken': '{{ csrf_token }}'
+                            },
+                            body: JSON.stringify({
+                                razorpay_order_id: response.razorpay_order_id,
+                                razorpay_payment_id: response.razorpay_payment_id,
+                                razorpay_signature: response.razorpay_signature
+                            })
+                        });
+                        const verifyData = await verifyRes.json();
+                        if (verifyData.status === 'success') {
+                            window.location.href = '/api/payment-success/';
+                        } else {
+                            alert('Verification failed: ' + verifyData.error);
+                            location.reload();
+                        }
+                    },
+                    "prefill": {
+                        "name": data.user_name,
+                        "email": data.user_email
+                    },
+                    "theme": { "color": "#d9232d" },
+                    "modal": {
+                        "ondismiss": function() {
+                            payButton.disabled = false;
+                            payButton.innerText = 'Pay Now';
+                        }
+                    }
+                };
+                const rzp = new Razorpay(options);
+                rzp.open();
+            } else {
+                alert('Error: ' + data.error);
+                payButton.disabled = false;
+                payButton.innerText = 'Pay Now';
+            }
+        } catch (err) {
+            console.error(err);
+            alert('An unexpected error occurred.');
+            payButton.disabled = false;
+            payButton.innerText = 'Pay Now';
+        }
+    });
+</script>
+{% endblock %}

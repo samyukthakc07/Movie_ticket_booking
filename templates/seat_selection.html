@@ -1,0 +1,340 @@
+{% extends 'base.html' %}
+
+{% block title %}Select Your Seats | Movie Magic{% endblock %}
+
+{% block extra_css %}
+<style>
+    .selection-header {
+        text-align: center;
+        margin-bottom: 60px;
+    }
+
+    .screen-stage {
+        width: 100%;
+        max-width: 800px;
+        margin: 0 auto 80px;
+        text-align: center;
+    }
+
+    .screen-curve {
+        height: 12px;
+        width: 100%;
+        background: var(--primary);
+        border-radius: 50%;
+        box-shadow: 0 10px 40px rgba(217, 35, 45, 0.4);
+        margin-bottom: 20px;
+    }
+
+    .screen-label {
+        font-size: 12px;
+        color: var(--text-muted);
+        letter-spacing: 10px;
+        text-transform: uppercase;
+    }
+
+    .seats-grid {
+        display: grid;
+        grid-template-columns: repeat(10, 1fr);
+        gap: 15px;
+        max-width: 600px;
+        margin: 0 auto 60px;
+    }
+
+    .seat {
+        width: 40px;
+        height: 40px;
+        background: var(--glass);
+        border: 1px solid var(--glass-border);
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 11px;
+        cursor: pointer;
+        transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+
+    .seat:hover:not(.booked):not(.locked) {
+        background: var(--primary-dark);
+        border-color: var(--primary);
+        transform: scale(1.1);
+    }
+
+    .seat.selected {
+        background: var(--primary);
+        border-color: var(--primary);
+        box-shadow: 0 0 15px var(--primary);
+    }
+
+    .seat.booked {
+        background: #1a1a1a;
+        border-color: #222;
+        color: #444;
+        cursor: not-allowed;
+    }
+
+    .seat.locked {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: black;
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+
+    .legend {
+        display: flex;
+        justify-content: center;
+        gap: 30px;
+        margin-bottom: 50px;
+    }
+
+    .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 13px;
+        color: var(--text-muted);
+    }
+
+    /* Floating Checkout Bar */
+    .checkout-bar {
+        position: fixed;
+        bottom: 30px;
+        left: 50%;
+        transform: translateX(-50%) translateY(150%);
+        width: 90%;
+        max-width: 900px;
+        background: rgba(30, 30, 30, 0.8);
+        backdrop-filter: blur(20px);
+        border: 1px solid var(--glass-border);
+        border-radius: 25px;
+        padding: 20px 40px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+        z-index: 1000;
+    }
+
+    .checkout-bar.visible {
+        transform: translateX(-50%) translateY(0);
+    }
+
+    .timer-pill {
+        background: var(--primary);
+        padding: 5px 15px;
+        border-radius: 50px;
+        font-weight: 700;
+        font-size: 14px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .price-info h2 { font-size: 24px; }
+    .price-info p { font-size: 12px; color: var(--text-muted); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container animate-fade">
+    <div class="selection-header">
+        <h1 id="movieTitle" style="font-family: 'Playfair Display', serif; font-size: 36px; margin-bottom: 10px;">Loading Show...</h1>
+        <p id="showMeta" style="color: var(--text-muted); font-size: 16px;">Please wait while we fetch the layout.</p>
+    </div>
+
+    <div class="screen-stage">
+        <div class="screen-curve"></div>
+        <div class="screen-label">Screen</div>
+    </div>
+
+    <div class="legend">
+        <div class="legend-item"><div class="seat"></div> Available</div>
+        <div class="legend-item"><div class="seat selected"></div> Selected</div>
+        <div class="legend-item"><div class="seat locked"></div> Reserved</div>
+        <div class="legend-item"><div class="seat booked"></div> Sold</div>
+    </div>
+
+    <div id="seatsGrid" class="seats-grid">
+        <!-- Dynamic Seats -->
+    </div>
+</div>
+
+<div id="checkoutBar" class="checkout-bar">
+    <div class="price-info">
+        <p id="selectedCount">0 Seats Selected</p>
+        <h2 id="totalPrice">$0.00</h2>
+    </div>
+    
+    <div style="display: flex; align-items: center; gap: 25px;">
+        <div class="timer-pill" id="timerPill" style="display: none;">
+            <span>⏱</span> <span id="timerText">02:00</span>
+        </div>
+        <button class="btn btn-primary" onclick="proceedToPayment()">Confirm Reservation</button>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const showId = urlParams.get('show_id') || 1; // Default for demo
+    let selectedSeats = new Map(); // ID -> Number
+    let seatPrice = 0;
+    let timerInterval;
+
+    async function loadLayout() {
+        try {
+            const response = await fetch(`/api/seat-layout/?show_id=${showId}`);
+            const data = await response.json();
+
+            document.getElementById('movieTitle').innerText = data.show_title;
+            const date = new Date(data.show_time);
+            document.getElementById('showMeta').innerText = `${data.theater} • ${date.toLocaleDateString()} at ${date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
+            seatPrice = parseFloat(data.price);
+
+            const grid = document.getElementById('seatsGrid');
+            grid.innerHTML = data.seats.map(seat => `
+                <div class="seat ${seat.status}" 
+                     data-id="${seat.seat_id}" 
+                     data-number="${seat.seat_number}"
+                     onclick="toggleSeat(this)">
+                    ${seat.seat_number}
+                </div>
+            `).join('');
+
+        } catch (err) {
+            console.error(err);
+        }
+    }
+
+    // Refresh layout periodically to release expired seats for all users
+    const pollInterval = setInterval(() => {
+        if (selectedSeats.size === 0) { // Only auto-refresh if user hasn't started selection to avoid UI jumps
+            loadLayout();
+        }
+    }, 15000);
+
+    async function toggleSeat(el) {
+        if (el.classList.contains('booked') || el.classList.contains('locked')) return;
+
+        const seatId = el.dataset.id;
+        const seatNum = el.dataset.number;
+
+        if (el.classList.contains('selected')) {
+            // Deselect
+            el.classList.remove('selected');
+            selectedSeats.delete(seatId);
+        } else {
+            // Select - Call API to Lock
+            try {
+                const response = await fetch('/api/reserve-seat/', {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token }}'
+                    },
+                    body: JSON.stringify({
+                        seat_id: seatId,
+                        show_id: showId,
+                        user_id: "{{ user.id|default:1 }}"
+                    })
+                });
+                const data = await response.json();
+
+                if (data.status === 'success') {
+                    el.classList.add('selected');
+                    selectedSeats.set(seatId, seatNum);
+                    if (selectedSeats.size === 1) startTimer(data.locked_until);
+                } else {
+                    alert(data.message);
+                    loadLayout(); // Refresh to show current status
+                }
+            } catch (err) {
+                console.error(err);
+            }
+        }
+        updateBar();
+    }
+
+    function updateBar() {
+        const bar = document.getElementById('checkoutBar');
+        const count = document.getElementById('selectedCount');
+        const total = document.getElementById('totalPrice');
+
+        if (selectedSeats.size > 0) {
+            bar.classList.add('visible');
+            count.innerText = `${selectedSeats.size} Seat${selectedSeats.size > 1 ? 's' : ''} Selected`;
+            total.innerText = `$${(selectedSeats.size * seatPrice).toFixed(2)}`;
+        } else {
+            bar.classList.remove('visible');
+            stopTimer();
+        }
+    }
+
+    function startTimer(expiryStr) {
+        const pill = document.getElementById('timerPill');
+        const text = document.getElementById('timerText');
+        pill.style.display = 'flex';
+
+        const expiry = new Date(expiryStr).getTime();
+        
+        clearInterval(timerInterval);
+        timerInterval = setInterval(() => {
+            const now = new Date().getTime();
+            const diff = expiry - now;
+
+            if (diff <= 0) {
+                clearInterval(timerInterval);
+                alert("Session expired! Your seats have been released.");
+                location.reload();
+                return;
+            }
+
+            const mins = Math.floor(diff / 60000);
+            const secs = Math.floor((diff % 60000) / 1000);
+            text.innerText = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        }, 1000);
+    }
+
+    function stopTimer() {
+        clearInterval(timerInterval);
+        document.getElementById('timerPill').style.display = 'none';
+    }
+
+    async function proceedToPayment() {
+        if ("{{ user.is_authenticated }}" === "False") {
+            alert("Please sign in to book tickets.");
+            window.location.href = "{% url 'login' %}?next=" + window.location.pathname + window.location.search;
+            return;
+        }
+
+        const seatIds = Array.from(selectedSeats.keys());
+        
+        try {
+            const response = await fetch('/api/create-booking/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+                body: JSON.stringify({
+                    show_id: showId,
+                    seat_ids: seatIds,
+                    user_id: "{{ user.id }}"
+                })
+            });
+            const data = await response.json();
+
+            if (data.status === 'success') {
+                window.location.href = `/api/checkout/${data.booking_id}/`;
+            } else {
+                alert("Error: " + data.error);
+                location.reload(); // Likely timed out
+            }
+        } catch (err) {
+            console.error(err);
+            alert("Something went wrong. Please try again.");
+        }
+    }
+
+    window.addEventListener('load', loadLayout);
+</script>
+{% endblock %}

@@ -1,0 +1,183 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ movie.title }} | Movie Magic{% endblock %}
+
+{% block extra_css %}
+<style>
+    .movie-hero {
+        position: relative;
+        height: 60vh;
+        background-size: cover;
+        background-position: center;
+        display: flex;
+        align-items: flex-end;
+        padding-bottom: 50px;
+        border-radius: 0 0 50px 50px;
+    }
+
+    .movie-hero::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(transparent, rgba(15, 15, 15, 0.9));
+    }
+
+    .hero-content {
+        position: relative;
+        z-index: 2;
+        display: flex;
+        gap: 40px;
+        align-items: flex-end;
+    }
+
+    .poster-img {
+        width: 280px;
+        height: 420px;
+        border-radius: 20px;
+        box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+        border: 1px solid var(--glass-border);
+        background-size: cover;
+        margin-bottom: -100px;
+    }
+
+    .info-main h1 {
+        font-family: 'Playfair Display', serif;
+        font-size: 48px;
+        margin-bottom: 15px;
+    }
+
+    .tags {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 20px;
+    }
+
+    .tag {
+        padding: 5px 15px;
+        background: var(--primary);
+        border-radius: 50px;
+        font-size: 14px;
+        font-weight: 600;
+    }
+
+    .detail-grid {
+        display: grid;
+        grid-template-columns: 320px 1fr;
+        gap: 60px;
+        margin-top: 140px;
+    }
+
+    .sidebar h3 {
+        margin-bottom: 20px;
+        color: var(--primary);
+    }
+
+    .cast-list {
+        list-style: none;
+        color: var(--text-muted);
+    }
+
+    .trailer-section {
+        margin-top: 50px;
+    }
+
+    .video-container {
+        position: relative;
+        padding-bottom: 56.25%; /* 16:9 */
+        height: 0;
+        overflow: hidden;
+        border-radius: 20px;
+        background: black;
+        border: 1px solid var(--glass-border);
+    }
+
+    .video-container iframe {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+    }
+
+    .booking-card {
+        position: sticky;
+        top: 120px;
+        text-align: center;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="movie-hero" style="background-image: url('{{ movie.poster_url|default:"https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&q=80&w=2000" }}');">
+    <div class="container hero-content">
+        <div class="poster-img" style="background-image: url('{{ movie.poster_url|default:"https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&q=80&w=2000" }}');"></div>
+        <div class="info-main">
+            <div class="tags">
+                <span class="tag">{{ movie.genre }}</span>
+                <span class="tag" style="background: rgba(255,255,255,0.1)">{{ movie.language }}</span>
+                <span class="tag" style="background: var(--accent); color: black;">★ {{ movie.rating }}</span>
+            </div>
+            <h1>{{ movie.title }}</h1>
+            <p style="color: var(--text-muted); font-size: 18px;">Released on {{ movie.release_date|date:"M d, Y" }} • {{ movie.duration }} mins</p>
+        </div>
+    </div>
+</div>
+
+<div class="container detail-grid">
+    <div class="sidebar">
+        <div class="glass-card booking-card">
+            <h3>Available Shows</h3>
+            <p style="margin-bottom: 25px; color: var(--text-muted);">Choose a theater and time below.</p>
+            
+            <div style="display: flex; flex-direction: column; gap: 15px;">
+                {% for show in shows %}
+                <a href="/api/seats/?show_id={{ show.id }}" class="glass-card" style="display: flex; justify-content: space-between; align-items: center; padding: 15px; text-decoration: none; border: 1px solid var(--glass-border); transition: 0.3s; text-align: left;">
+                    <div>
+                        <strong style="color: white; display: block;">{{ show.screen.theater.name }}</strong>
+                        <span style="font-size: 13px; color: var(--text-muted);">{{ show.show_time|date:"D, M d" }}</span>
+                    </div>
+                    <div style="text-align: right;">
+                        <span class="btn btn-primary" style="padding: 5px 12px; font-size: 12px;">{{ show.show_time|date:"h:i A" }}</span>
+                        <div style="font-size: 12px; color: var(--accent); margin-top: 5px;">${{ show.price }}</div>
+                    </div>
+                </a>
+                {% empty %}
+                <p style="color: var(--text-muted);">No upcoming shows found for this movie.</p>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <div class="main-info">
+        <h3>Synopsis</h3>
+        <p style="font-size: 18px; margin-top:15px; color: var(--text-muted);">
+            {{ movie.description }}
+        </p>
+
+        <div class="trailer-section">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px;">
+                <h3>Official Trailer</h3>
+                <span style="font-size: 14px; color: var(--text-muted);">High Definition 4K</span>
+            </div>
+            
+            <div class="video-container">
+                {% if trailer_embed %}
+                <!-- Performance Control: loading="lazy" and secure URL -->
+                <iframe 
+                    src="{{ trailer_embed }}" 
+                    title="YouTube video player" 
+                    frameborder="0" 
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                    allowfullscreen
+                    loading="lazy">
+                </iframe>
+                {% else %}
+                <div style="display: flex; align-items: center; justify-content: center; height: 100%; color: var(--text-muted);">
+                    <p>Trailer currently unavailable</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

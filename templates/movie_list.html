@@ -1,0 +1,375 @@
+{% extends 'base.html' %}
+
+{% block title %}Explore Movies | Movie Magic{% endblock %}
+
+{% block extra_css %}
+<style>
+    .discovery-layout {
+        display: grid;
+        grid-template-columns: 280px 1fr;
+        gap: 40px;
+        margin-top: 40px;
+    }
+
+    /* Filters Sidebar */
+    .filters-sidebar {
+        position: sticky;
+        top: 100px;
+        height: min-content;
+    }
+
+    .filter-section {
+        margin-bottom: 30px;
+    }
+
+    .filter-section h4 {
+        margin-bottom: 15px;
+        font-size: 14px;
+        text-transform: uppercase;
+        color: var(--text-muted);
+        letter-spacing: 1px;
+    }
+
+    .filter-options {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .filter-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 8px 12px;
+        background: var(--glass);
+        border: 1px solid var(--glass-border);
+        border-radius: 12px;
+        cursor: pointer;
+        transition: all 0.3s;
+        font-size: 14px;
+    }
+
+    .filter-item:hover {
+        border-color: var(--primary);
+    }
+
+    .filter-item.active {
+        background: var(--primary);
+        border-color: var(--primary);
+    }
+
+    .filter-item .count {
+        font-size: 11px;
+        opacity: 0.7;
+        background: rgba(0,0,0,0.3);
+        padding: 2px 6px;
+        border-radius: 4px;
+    }
+
+    /* Main Grid & Controls */
+    .controls-bar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 30px;
+    }
+
+    .search-input {
+        background: var(--glass);
+        border: 1px solid var(--glass-border);
+        padding: 10px 20px;
+        border-radius: 50px;
+        color: white;
+        width: 300px;
+        outline: none;
+    }
+
+    .movie-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+        gap: 25px;
+    }
+
+    .movie-card {
+        background: var(--card-bg);
+        border-radius: 20px;
+        overflow: hidden;
+        transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        border: 1px solid var(--glass-border);
+        cursor: pointer;
+    }
+
+    .movie-card:hover {
+        transform: scale(1.03);
+        box-shadow: 0 15px 30px rgba(0,0,0,0.5);
+    }
+
+    .movie-poster {
+        height: 350px;
+        background-size: cover;
+        background-position: center;
+        position: relative;
+    }
+
+    .rating-overlay {
+        position: absolute;
+        top: 15px;
+        right: 15px;
+        background: rgba(0,0,0,0.8);
+        padding: 5px 10px;
+        border-radius: 8px;
+        color: var(--accent);
+        font-weight: 700;
+        backdrop-filter: blur(5px);
+    }
+
+    .movie-content {
+        padding: 20px;
+    }
+
+    .movie-content h3 { font-size: 18px; margin-bottom: 5px; }
+    .movie-details { font-size: 13px; color: var(--text-muted); }
+
+    /* Pagination */
+    .pagination {
+        margin-top: 50px;
+        display: flex;
+        justify-content: center;
+        gap: 10px;
+    }
+
+    .page-btn {
+        width: 40px;
+        height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--glass);
+        border: 1px solid var(--glass-border);
+        border-radius: 10px;
+        cursor: pointer;
+        transition: 0.3s;
+    }
+
+    .page-btn.active {
+        background: var(--primary);
+        color: white;
+    }
+
+    .loading-shimmer {
+        height: 350px;
+        background: linear-gradient(90deg, #1e1e1e 25%, #2a2a2a 50%, #1e1e1e 75%);
+        background-size: 200% 100%;
+        animation: shimmer 1.5s infinite;
+    }
+
+    #movieSort {
+        cursor: pointer;
+    }
+
+    #movieSort option {
+        background: #1a1a1a;
+        color: white;
+        padding: 10px;
+    }
+
+    @keyframes shimmer {
+        0% { background-position: -200% 0; }
+        100% { background-position: 200% 0; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="discovery-layout">
+        <!-- Sidebar Filters -->
+        <aside class="filters-sidebar">
+            <div class="glass-card">
+                <div class="filter-section">
+                    <h4>Genres</h4>
+                    <div id="genreFilters" class="filter-options">
+                        <!-- Dynamic Genres -->
+                    </div>
+                </div>
+
+                <div class="filter-section">
+                    <h4>Languages</h4>
+                    <div id="languageFilters" class="filter-options">
+                        <!-- Dynamic Languages -->
+                    </div>
+                </div>
+
+                <button class="btn btn-primary" style="width: 100%;" onclick="resetFilters()">Reset All</button>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <section>
+            <div class="controls-bar">
+                <input type="text" placeholder="Search movies..." class="search-input" id="movieSearch">
+                <select id="movieSort" class="btn" style="background: var(--glass); color: white; border: 1px solid var(--glass-border); padding: 10px 20px;">
+                    <option value="-rating">Top Rated</option>
+                    <option value="-release_date">Newest</option>
+                    <option value="release_date">Oldest</option>
+                    <option value="title">Alphabetical</option>
+                </select>
+            </div>
+
+            <div id="movieCount" style="margin-bottom: 20px; font-size: 14px; color: var(--text-muted);">
+                Analyzing 0 movies...
+            </div>
+
+            <div id="moviesContainer" class="movie-grid">
+                <!-- Skeleton Loading State -->
+                {% for i in "123456" %}
+                <div class="movie-card"><div class="loading-shimmer"></div></div>
+                {% endfor %}
+            </div>
+
+            <div id="paginationContainer" class="pagination">
+                <!-- Dynamic Pagination -->
+            </div>
+        </section>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let activeGenres = new Set();
+    let activeLanguages = new Set();
+    let currentPage = 1;
+
+    async function fetchMovies() {
+        const container = document.getElementById('moviesContainer');
+        const genreBox = document.getElementById('genreFilters');
+        const langBox = document.getElementById('languageFilters');
+        const countDisplay = document.getElementById('movieCount');
+        const searchQuery = document.getElementById('movieSearch').value;
+
+        let url = `/api/movies/?page=${currentPage}&sort=${document.getElementById('movieSort').value}&q=${encodeURIComponent(searchQuery)}`;
+        activeGenres.forEach(g => url += `&genre=${encodeURIComponent(g)}`);
+        activeLanguages.forEach(l => url += `&language=${encodeURIComponent(l)}`);
+
+        try {
+            const response = await fetch(url);
+            const data = await response.json();
+
+            // Split movies into showing and non-showing
+            const showingMovies = data.movies.filter(m => m.has_shows);
+            const upcomingMovies = data.movies.filter(m => !m.has_shows);
+
+            let html = '';
+            
+            if (showingMovies.length > 0) {
+                html += `<div style="grid-column: 1/-1; margin: 20px 0 10px;"><h2 style="font-family: 'Playfair Display', serif;">Now Showing</h2></div>`;
+                html += showingMovies.map(movie => renderMovieCard(movie)).join('');
+            }
+
+            if (upcomingMovies.length > 0) {
+                html += `<div style="grid-column: 1/-1; margin: 40px 0 10px;"><h2 style="font-family: 'Playfair Display', serif; color: var(--text-muted);">Coming Soon / No Shows</h2></div>`;
+                html += upcomingMovies.map(movie => renderMovieCard(movie)).join('');
+            }
+
+            container.innerHTML = html;
+
+            if (data.movies.length === 0) {
+                container.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 100px;">No movies found matching these filters.</div>';
+            }
+
+            // Render Filters with Dynamic Counts
+            renderFilterSection(genreBox, data.available_filters.genres, activeGenres, toggleGenre);
+            renderFilterSection(langBox, data.available_filters.languages, activeLanguages, toggleLanguage);
+
+            // Pagination
+            renderPagination(data.total_pages);
+
+            countDisplay.innerText = `Found ${data.total_movies} movies matching your criteria`;
+
+        } catch (err) {
+            console.error("Fetch error:", err);
+        }
+    }
+
+    function renderMovieCard(movie) {
+        return `
+            <div class="movie-card animate-fade" onclick="location.href='/movie/${movie.id}/'">
+                <div class="movie-poster" style="background-image: url('${movie.poster_url || 'https://images.unsplash.com/photo-1440404653325-ab127d49abc1?auto=format&fit=crop&q=80&w=1000'}')">
+                    <div class="rating-overlay">★ ${movie.rating}</div>
+                </div>
+                <div class="movie-content">
+                    <h3>${movie.title}</h3>
+                    <div class="movie-details">
+                        ${movie.genre} • ${movie.language} • ${movie.duration}m
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    function renderFilterSection(container, items, activeSet, toggleFn) {
+        container.innerHTML = items.map(item => {
+            const key = item.genre || item.language;
+            const isActive = activeSet.has(key);
+            return `
+                <div class="filter-item ${isActive ? 'active' : ''}" onclick="${toggleFn.name}('${key.replace(/'/g, "\\'")}')">
+                    <span>${key}</span>
+                    <span class="count">${item.count}</span>
+                </div>
+            `;
+        }).join('');
+    }
+
+    function renderPagination(totalPages) {
+        const container = document.getElementById('paginationContainer');
+        let html = '';
+        for (let i = 1; i <= totalPages; i++) {
+            html += `<div class="page-btn ${i === currentPage ? 'active' : ''}" onclick="goToPage(${i})">${i}</div>`;
+        }
+        container.innerHTML = html;
+    }
+
+    function toggleGenre(genre) {
+        if (activeGenres.has(genre)) activeGenres.delete(genre);
+        else activeGenres.add(genre);
+        currentPage = 1;
+        fetchMovies();
+    }
+
+    function toggleLanguage(lang) {
+        if (activeLanguages.has(lang)) activeLanguages.delete(lang);
+        else activeLanguages.add(lang);
+        currentPage = 1;
+        fetchMovies();
+    }
+
+    function goToPage(page) {
+        currentPage = page;
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        fetchMovies();
+    }
+
+    function resetFilters() {
+        activeGenres.clear();
+        activeLanguages.clear();
+        currentPage = 1;
+        fetchMovies();
+    }
+
+    document.getElementById('movieSort').onchange = () => { currentPage = 1; fetchMovies(); };
+    
+    // Search with Debounce
+    let searchTimer;
+    document.getElementById('movieSearch').oninput = () => {
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(() => {
+            currentPage = 1;
+            fetchMovies();
+        }, 500);
+    };
+
+    // Initial load
+    window.addEventListener('load', fetchMovies);
+</script>
+{% endblock %}

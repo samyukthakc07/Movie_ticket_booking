@@ -1,0 +1,140 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ theater.name }} | Movie Magic{% endblock %}
+
+{% block extra_css %}
+<style>
+    .theater-hero {
+        height: 40vh;
+        background: url('https://images.unsplash.com/photo-1517604401157-538e9663ec1d?auto=format&fit=crop&q=80&w=2000') center/cover;
+        position: relative;
+        display: flex;
+        align-items: center;
+        margin-top: -80px;
+    }
+
+    .theater-hero::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(rgba(0,0,0,0.5), rgba(15, 15, 15, 1));
+    }
+
+    .hero-content {
+        position: relative;
+        z-index: 2;
+    }
+
+    .hero-content h1 {
+        font-family: 'Playfair Display', serif;
+        font-size: 56px;
+        margin-bottom: 10px;
+    }
+
+    .movie-section {
+        margin-top: 60px;
+    }
+
+    .movie-row {
+        display: grid;
+        grid-template-columns: 200px 1fr;
+        gap: 40px;
+        background: var(--glass);
+        border: 1px solid var(--glass-border);
+        border-radius: 30px;
+        padding: 30px;
+        margin-bottom: 30px;
+        transition: 0.3s;
+    }
+
+    .movie-row:hover {
+        border-color: var(--primary);
+        transform: translateY(-5px);
+    }
+
+    .movie-poster {
+        width: 100%;
+        height: 280px;
+        border-radius: 20px;
+        object-fit: cover;
+    }
+
+    .showtimes-grid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 15px;
+        margin-top: 20px;
+    }
+
+    .showtime-pill {
+        padding: 12px 25px;
+        background: rgba(255,255,255,0.05);
+        border: 1px solid var(--glass-border);
+        border-radius: 12px;
+        text-decoration: none;
+        color: white;
+        transition: 0.3s;
+        text-align: center;
+    }
+
+    .showtime-pill:hover {
+        background: var(--primary);
+        border-color: var(--primary);
+        transform: scale(1.05);
+    }
+
+    .showtime-pill span {
+        display: block;
+        font-size: 11px;
+        color: var(--text-muted);
+    }
+
+    .showtime-pill:hover span {
+        color: rgba(255,255,255,0.8);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="theater-hero">
+    <div class="container hero-content animate-fade">
+        <span style="color: var(--accent); font-weight: 700; letter-spacing: 2px;">📍 {{ theater.location }}</span>
+        <h1>{{ theater.name }}</h1>
+        <p style="color: var(--text-muted); font-size: 18px;">Now showing premium cinematic experiences near you.</p>
+    </div>
+</div>
+
+<div class="container movie-section">
+    <div class="section-title">
+        <h2>Movies Playing Today</h2>
+    </div>
+
+    {% for item in movie_shows %}
+    <div class="movie-row animate-fade">
+        <img src="{{ item.movie.poster_url|default:'https://images.unsplash.com/photo-1440404653325-ab127d49abc1?auto=format&fit=crop&q=80&w=1000' }}" class="movie-poster">
+        <div>
+            <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                <span class="tag" style="background: var(--primary); padding: 4px 12px; border-radius: 50px; font-size: 12px;">{{ item.movie.genre }}</span>
+                <span class="tag" style="background: rgba(255,255,255,0.1); padding: 4px 12px; border-radius: 50px; font-size: 12px;">{{ item.movie.language }}</span>
+            </div>
+            <h3 style="font-size: 28px; font-family: 'Playfair Display', serif;">{{ item.movie.title }}</h3>
+            <p style="color: var(--text-muted); margin-top: 10px; line-height: 1.6;">{{ item.movie.description|truncatewords:40 }}</p>
+            
+            <div class="showtimes-grid">
+                {% for show in item.shows %}
+                <a href="/api/seats/?show_id={{ show.id }}" class="showtime-pill">
+                    <strong>{{ show.show_time|date:"h:i A" }}</strong>
+                    <span>{{ show.show_time|date:"D, M d" }}</span>
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% empty %}
+    <div class="glass-card" style="padding: 100px; text-align: center;">
+        <h3 style="color: var(--text-muted);">No movies are currently scheduled at this theater.</h3>
+        <a href="/explore/" class="btn btn-primary" style="margin-top: 20px;">Browse All Movies</a>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}
