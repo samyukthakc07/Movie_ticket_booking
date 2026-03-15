@@ -20,14 +20,14 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-q8$@dp38xq7%#g==x&h@eh$2j4by*)2)**x=^=0ym&o=!1%dec'
-
-import os
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-q8$@dp38xq7%#g==x&h@eh$2j4by*)2)**x=^=0ym&o=!1%dec')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DJANGO_DEBUG', 'False') == 'True'
 
-ALLOWED_HOSTS = ['*'] # Replace with your actual domain later if needed
+ALLOWED_HOSTS = os.environ.get('DJANGO_ALLOWED_HOSTS', '*').split(',')
+
+import dj_database_url
 
 
 # Application definition
@@ -84,10 +84,10 @@ WSGI_APPLICATION = 'movie_booking_system.wsgi.application'
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
+    'default': dj_database_url.config(
+        default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}",
+        conn_max_age=600
+    )
 }
 
 
