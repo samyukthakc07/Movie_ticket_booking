@@ -1,0 +1,1 @@
+web: gunicorn movie_booking_system.wsgi
