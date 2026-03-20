@@ -1,0 +1,16 @@
+[Unit]
+Description=Movie Booking System Background Worker
+After=network.target
+
+[Service]
+User=ubuntu
+Group=www-data
+WorkingDirectory=/home/ubuntu/movie_booking_system
+EnvironmentFile=/home/ubuntu/movie_booking_system/.env
+ExecStart=/home/ubuntu/movie_booking_system/.venv/bin/python manage.py run_background_workers --interval 15
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+

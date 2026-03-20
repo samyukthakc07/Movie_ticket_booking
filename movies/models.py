@@ -2,7 +2,7 @@ from django.db import models
 
 
 class Movie(models.Model):
-    title = models.CharField(max_length=200)
+    title = models.CharField(max_length=200, db_index=True)
     description = models.TextField()
     genre = models.CharField(max_length=100, db_index=True)
     language = models.CharField(max_length=50, db_index=True)
@@ -11,6 +11,15 @@ class Movie(models.Model):
     trailer_url = models.URLField()
     poster_url = models.URLField(blank=True, null=True)
     rating = models.FloatField(default=0, db_index=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['genre', 'language']),
+            models.Index(fields=['genre', 'release_date']),
+            models.Index(fields=['language', 'release_date']),
+            models.Index(fields=['genre', 'rating']),
+            models.Index(fields=['language', 'rating']),
+        ]
 
     def __str__(self):
         return self.title
@@ -42,6 +51,7 @@ class Show(models.Model):
     class Meta:
         indexes = [
             models.Index(fields=['movie', 'show_time']),
+            models.Index(fields=['screen', 'show_time']),
         ]
 
     def __str__(self):

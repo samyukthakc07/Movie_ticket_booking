@@ -1,15 +1,13 @@
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from django.utils import timezone
-from datetime import timedelta
 from django.db import transaction
 from .models import Booking, SeatReservation, Seat
 from movies.models import Show
-from django.contrib.auth.models import User
-from django.core.mail import send_mail
 from django.db.models import Q
-from django.shortcuts import render, redirect
+from django.shortcuts import render
 from django.contrib.auth.decorators import login_required
+from .services import LOCK_WINDOW, release_expired_locks
 
 
 @api_view(['POST'])
@@ -20,25 +18,27 @@ def reserve_seat(request):
     """
     seat_id = request.data.get("seat_id")
     show_id = request.data.get("show_id")
-    user_id = request.data.get("user_id")
+    user_id = request.user.id if request.user.is_authenticated else request.data.get("user_id")
+
+    if not all([seat_id, show_id, user_id]):
+        return Response({"status": "error", "message": "seat_id, show_id and user_id are required."}, status=400)
 
     # Use atomic transaction with select_for_update for row-level locking
     with transaction.atomic():
-        # Clean up expired locks first (can be done here or in background)
-        # release_expired_locks() is called globally but better to keep it focused
-        
         try:
-            # Clean up expired locks first
             release_expired_locks()
-            
-            # Check if seat is already occupied by a valid 'booked' or 'locked' reservation
+
+            seat = Seat.objects.select_for_update().select_related('screen').get(id=seat_id)
+            show = Show.objects.select_for_update().select_related('screen').get(id=show_id)
+            if seat.screen_id != show.screen_id:
+                return Response({"status": "error", "message": "Seat does not belong to this show."}, status=400)
+
             existing = SeatReservation.objects.select_for_update().filter(
                 seat_id=seat_id,
-                show_id=show_id
+                show_id=show_id,
             ).filter(
-                Q(status='booked') | 
-                Q(status='locked', locked_until__gt=timezone.now())
-            ).exists()
+                Q(status='booked') | Q(status='locked', locked_until__gt=timezone.now())
+            ).first()
 
             if existing:
                 return Response({
@@ -46,36 +46,29 @@ def reserve_seat(request):
                     "message": "Seat already reserved or selection in progress."
                 }, status=400)
 
-            # Clear any stale 'locked' records for this seat/show to avoid UniqueConstraint errors
             SeatReservation.objects.filter(
-                seat_id=seat_id, 
-                show_id=show_id, 
-                status='locked'
+                seat_id=seat_id,
+                show_id=show_id,
+                status='expired',
             ).delete()
 
-            lock_time = timezone.now() + timedelta(minutes=2)
+            lock_time = timezone.now() + LOCK_WINDOW
 
-            reservation = SeatReservation.objects.create(
+            SeatReservation.objects.create(
                 seat_id=seat_id,
                 show_id=show_id,
                 user_id=user_id,
                 status="locked",
-                locked_until=lock_time
+                locked_until=lock_time,
             )
 
             return Response({
                 "status": "success",
                 "message": "Seat locked for 2 minutes.",
-                "locked_until": lock_time
+                "locked_until": lock_time,
             })
         except Exception as e:
             return Response({"status": "error", "message": str(e)}, status=500)
-    
-def release_expired_locks():
-    SeatReservation.objects.filter(
-        status="locked",
-        locked_until__lt=timezone.now()
-    ).delete()
 
 
 @api_view(['GET'])
@@ -95,12 +88,9 @@ def seat_layout(request):
     # Explicitly release expired locks before querying
     release_expired_locks()
 
-    # Get active reservations (locked or booked)
-    # We order by -status to ensure 'locked' comes after 'booked' if we were to have both (B > L)
-    # But better to just be explicit in the map.
     active_reservations = SeatReservation.objects.filter(
         show_id=show_id,
-        status__in=['locked', 'booked']
+        status__in=['locked', 'booked'],
     ).values('seat_id', 'status')
 
     reservation_map = {}
@@ -110,8 +100,8 @@ def seat_layout(request):
             reservation_map[sid] = status
 
     # Get all seats for the screen associated with this show
-    show = Show.objects.get(id=show_id)
-    seats = Seat.objects.filter(screen=show.screen)
+    show = Show.objects.select_related('movie', 'screen__theater').get(id=show_id)
+    seats = Seat.objects.filter(screen=show.screen).order_by('seat_number')
 
     seat_data = []
     for seat in seats:
@@ -138,20 +128,37 @@ def create_booking(request):
     Step 1: Create a 'pending' booking after seat selection.
     Idempotency: Uses client-provided session tokens if necessary, or simply relies on unique seat-show locks.
     """
-    user_id = request.data.get("user_id", 1) # Mock User
+    user_id = request.user.id if request.user.is_authenticated else request.data.get("user_id", 1)
     show_id = request.data.get("show_id")
-    seat_ids = request.data.get("seat_ids")
+    seat_ids = request.data.get("seat_ids") or []
+    request_key = request.data.get("idempotency_key") or request.session.session_key
 
     with transaction.atomic():
-        show = Show.objects.get(id=show_id)
-        
-        # Verify seats are still locked for this user
-        valid_reservations = SeatReservation.objects.filter(
+        release_expired_locks()
+        show = Show.objects.select_related('screen').get(id=show_id)
+
+        if not isinstance(seat_ids, list) or not seat_ids:
+            return Response({"error": "seat_ids must be a non-empty list."}, status=400)
+
+        existing_booking = None
+        if request_key:
+            existing_booking = Booking.objects.filter(
+                idempotency_key=request_key,
+                booking_status='pending',
+            ).first()
+        if existing_booking:
+            return Response({
+                "status": "success",
+                "booking_id": existing_booking.id,
+                "total_amount": existing_booking.total_amount,
+            })
+
+        valid_reservations = SeatReservation.objects.select_for_update().filter(
             show_id=show_id,
             seat_id__in=seat_ids,
             user_id=user_id,
             status='locked',
-            locked_until__gt=timezone.now()
+            locked_until__gt=timezone.now(),
         ).count()
 
         if valid_reservations != len(seat_ids):
@@ -161,7 +168,8 @@ def create_booking(request):
             user_id=user_id,
             show=show,
             total_amount=show.price * len(seat_ids),
-            booking_status='pending'
+            booking_status='pending',
+            idempotency_key=request_key,
         )
         booking.seats.set(seat_ids)
         
@@ -173,7 +181,7 @@ def create_booking(request):
 
 def checkout_summary(request, booking_id):
     from django.conf import settings
-    booking = Booking.objects.get(id=booking_id)
+    booking = Booking.objects.select_related('show__movie', 'show__screen__theater').prefetch_related('seats').get(id=booking_id)
     return render(request, "checkout.html", {
         "booking": booking,
         "stripe_public_key": getattr(settings, 'STRIPE_PUBLIC_KEY', 'pk_test_sample')
@@ -190,7 +198,10 @@ def seat_selection(request):
 
 @login_required
 def my_bookings(request):
-    bookings = Booking.objects.filter(user=request.user).order_by('-created_at')
+    bookings = Booking.objects.filter(user=request.user).select_related(
+        'show__movie',
+        'show__screen__theater',
+    ).prefetch_related('seats').order_by('-created_at')
     return render(request, "my_bookings.html", {"bookings": bookings})
 
 @login_required
@@ -226,6 +237,8 @@ def confirm_booking(request, booking_id):
             booking = Booking.objects.select_for_update().get(id=booking_id, user=request.user)
             if booking.booking_status == 'confirmed':
                 return Response({"error": "Booking already confirmed"}, status=400)
+            if not booking.idempotency_key:
+                return Response({"error": "Verified payment is required before confirmation."}, status=400)
             
             booking.booking_status = 'confirmed'
             booking.save()

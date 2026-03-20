@@ -1,0 +1,16 @@
+[Unit]
+Description=Movie Booking System Gunicorn Web Service
+After=network.target
+
+[Service]
+User=ubuntu
+Group=www-data
+WorkingDirectory=/home/ubuntu/movie_booking_system
+EnvironmentFile=/home/ubuntu/movie_booking_system/.env
+ExecStart=/home/ubuntu/movie_booking_system/.venv/bin/gunicorn movie_booking_system.wsgi:application --bind 127.0.0.1:8000 --workers 3
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+

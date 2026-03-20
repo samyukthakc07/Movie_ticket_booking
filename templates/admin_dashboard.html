@@ -109,7 +109,7 @@
         </div>
         <div class="glass-card metric-card">
             <div class="metric-label">Active Theaters</div>
-            <div class="metric-value">12</div>
+            <div class="metric-value" id="activeTheaters">0</div>
             <div style="font-size: 12px; color: var(--text-muted);">All systems operational</div>
         </div>
     </div>
@@ -158,6 +158,8 @@
             
             document.getElementById('totalRevenue').innerText = data.total_revenue.toLocaleString();
             document.getElementById('cancelRate').innerText = data.cancellation_rate;
+            document.getElementById('avgOccupancy').innerText = data.average_occupancy;
+            document.getElementById('activeTheaters').innerText = data.theatre_performance.length;
 
             popularTbody.innerHTML = data.popular_movies.map(m => `
                 <tr>

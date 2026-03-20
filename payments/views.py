@@ -1,64 +1,97 @@
-import razorpay
+import hashlib
+import hmac
 import json
 import logging
+
+import razorpay
 from django.conf import settings
-from django.http import JsonResponse, HttpResponse
+from django.http import HttpResponse, JsonResponse
+from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework.decorators import api_view
-from bookings.models import Booking, SeatReservation
-from bookings.tasks import send_confirmation_email_task
+
+from bookings.models import Booking, Payment, PaymentWebhookEvent
+from bookings.services import LOCK_WINDOW, mark_booking_confirmed, release_expired_locks
 from django.db import transaction
-from django.utils import timezone
-import hmac
-import hashlib
 
 logger = logging.getLogger(__name__)
 
 client = razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
 
+
+def _booking_expired(booking):
+    return booking.created_at <= timezone.now() - LOCK_WINDOW
+
+
+def _sync_payment_record(booking, provider_payment_id, status):
+    Payment.objects.update_or_create(
+        booking=booking,
+        defaults={
+            'stripe_charge_id': provider_payment_id,
+            'amount': booking.total_amount,
+            'status': status,
+        },
+    )
+
+
 @api_view(['POST'])
 def create_razorpay_order(request):
     """
-    Creates a Razorpay order for a booking.
-    Implements idempotency by checking if an order already exists for the booking.
+    Create a Razorpay order for a pending booking, reusing an existing order id when present.
     """
     booking_id = request.data.get('booking_id')
     try:
-        booking = Booking.objects.get(id=booking_id, booking_status='pending')
-        
-        # Check if we already have an idempotency key/payment ID
-        # Mock mode for testing without real keys
+        release_expired_locks()
+        booking = Booking.objects.select_related('show__movie', 'user').get(id=booking_id, booking_status='pending')
+
+        if _booking_expired(booking):
+            booking.booking_status = 'expired'
+            booking.save(update_fields=['booking_status'])
+            return JsonResponse({'error': 'Booking session expired. Please select seats again.'}, status=400)
+
+        if booking.payment_id:
+            return JsonResponse({
+                'order_id': booking.payment_id,
+                'amount': int(booking.total_amount * 100),
+                'currency': 'INR',
+                'key_id': settings.RAZORPAY_KEY_ID,
+                'name': "Movie Magic" if not booking.payment_id.startswith('order_mock_') else "Movie Magic (MOCK)",
+                'description': f"Tickets for {booking.show.movie.title}",
+                'booking_id': booking.id,
+                'user_email': booking.user.email,
+                'user_name': booking.user.username,
+                'mock': booking.payment_id.startswith('order_mock_'),
+            })
+
         if settings.RAZORPAY_KEY_ID == "rzp_test_sample":
             mock_order_id = f"order_mock_{booking.id}"
             booking.payment_id = mock_order_id
-            booking.save()
-            
+            booking.save(update_fields=['payment_id'])
+
             return JsonResponse({
                 'order_id': mock_order_id,
                 'amount': int(booking.total_amount * 100),
                 'currency': 'INR',
-                'key_id': 'rzp_test_sample',
+                'key_id': settings.RAZORPAY_KEY_ID,
                 'name': "Movie Magic (MOCK)",
                 'description': f"Tickets for {booking.show.movie.title}",
                 'booking_id': booking.id,
                 'user_email': booking.user.email,
                 'user_name': booking.user.username,
-                'mock': True
+                'mock': True,
             })
 
         order_data = {
-            'amount': int(booking.total_amount * 100),  # amount in paise
+            'amount': int(booking.total_amount * 100),
             'currency': 'INR',
             'receipt': f'receipt_{booking.id}',
-            'payment_capture': 1  # auto capture
+            'payment_capture': 1,
+            'notes': {'booking_id': str(booking.id)},
         }
-        
         razorpay_order = client.order.create(data=order_data)
-        
-        # Save order ID to our booking for verification later
         booking.payment_id = razorpay_order['id']
-        booking.save()
-        
+        booking.save(update_fields=['payment_id'])
+
         return JsonResponse({
             'order_id': razorpay_order['id'],
             'amount': order_data['amount'],
@@ -68,145 +101,123 @@ def create_razorpay_order(request):
             'description': f"Tickets for {booking.show.movie.title}",
             'booking_id': booking.id,
             'user_email': booking.user.email,
-            'user_name': booking.user.username
+            'user_name': booking.user.username,
         })
-    except Exception as e:
-        logger.error(f"Error creating Razorpay order: {e}")
-        return JsonResponse({'error': str(e)}, status=400)
+    except Booking.DoesNotExist:
+        return JsonResponse({'error': 'Pending booking not found.'}, status=404)
+    except Exception as exc:
+        logger.exception("Error creating Razorpay order")
+        return JsonResponse({'error': str(exc)}, status=400)
+
 
 @csrf_exempt
 @api_view(['POST'])
 def razorpay_webhook(request):
     """
-    Webhook handler for Razorpay events.
-    Validates Razorpay signature and updates booking status.
-    Handles duplicate events using transaction atomicity and status checks.
+    Verify webhook signature, deduplicate events, and confirm the booking atomically.
     """
     payload = request.body.decode('utf-8')
-    signature = request.META.get('HTTP_X_RAZORPAY_SIGNATURE')
-    secret = settings.RAZORPAY_WEBHOOK_SECRET
-
-    # Verify signature
+    signature = request.META.get('HTTP_X_RAZORPAY_SIGNATURE', '')
     if not signature:
         return HttpResponse("Signature missing", status=400)
 
-    # In a real app, use razorpay.utility.verify_webhook_signature
-    # Manual verification for transparency in logic:
     expected_signature = hmac.new(
-        secret.encode('utf-8'),
+        settings.RAZORPAY_WEBHOOK_SECRET.encode('utf-8'),
         payload.encode('utf-8'),
-        hashlib.sha256
+        hashlib.sha256,
     ).hexdigest()
 
-    # Note: Razorpay uses a different verification method for webhooks usually
-    # For now, we will assume signature is passed and verified.
-    
+    if not hmac.compare_digest(expected_signature, signature):
+        logger.warning("Invalid Razorpay webhook signature")
+        return HttpResponse("Invalid signature", status=400)
+
     try:
         data = json.loads(payload)
-        event = data.get('event')
-        
-        if event == 'order.paid':
-            order_id = data['payload']['order']['entity']['id']
-            payment_id = data['payload']['payment']['entity']['id']
-            
-            with transaction.atomic():
-                try:
-                    # Idempotency: Use select_for_update to lock the row
-                    booking = Booking.objects.select_for_update().get(payment_id=order_id)
-                    
-                    if booking.booking_status == 'confirmed':
-                        return HttpResponse("Already processed", status=200)
+        event_type = data.get('event', '')
+        order_id = data.get('payload', {}).get('order', {}).get('entity', {}).get('id', '')
+        payment_id = data.get('payload', {}).get('payment', {}).get('entity', {}).get('id', '')
+        event_key = f"{event_type}:{order_id}:{payment_id}"
 
-                    booking.booking_status = 'confirmed'
-                    # Update with actual transaction payment ID
-                    booking.idempotency_key = payment_id 
-                    booking.save()
+        with transaction.atomic():
+            event, created = PaymentWebhookEvent.objects.select_for_update().get_or_create(
+                provider='razorpay',
+                event_key=event_key,
+                defaults={
+                    'event_type': event_type,
+                    'signature': signature,
+                    'payload': data,
+                    'status': 'received',
+                },
+            )
+            if not created and event.status == 'processed':
+                return HttpResponse("Already processed", status=200)
 
-                    # Update Seat Reservations: Transition from 'locked' to 'booked'
-                    # First, remove any other status records for these seats/show to avoid UNIQUE constraint
-                    SeatReservation.objects.filter(
-                        show=booking.show,
-                        seat__in=booking.seats.all()
-                    ).exclude(status='locked').delete()
+            if event_type != 'order.paid':
+                event.status = 'ignored'
+                event.payload = data
+                event.signature = signature
+                event.save(update_fields=['status', 'payload', 'signature'])
+                return HttpResponse("Event ignored", status=200)
 
-                    # Now safely update the locked records to booked
-                    SeatReservation.objects.filter(
-                        show=booking.show,
-                        seat__in=booking.seats.all(),
-                        status='locked'
-                    ).update(status='booked')
+            booking = Booking.objects.select_for_update().prefetch_related('seats').get(payment_id=order_id)
+            if booking.booking_status in ['cancelled', 'expired']:
+                event.status = 'failed'
+                event.error_message = f"Booking {booking.id} is {booking.booking_status}"
+                event.save(update_fields=['status', 'error_message'])
+                return HttpResponse("Booking no longer payable", status=409)
 
-                    # Send confirmation email
-                    send_confirmation_email_task(
-                        user=booking.user,
-                        movie=booking.show.movie,
-                        show=booking.show,
-                        booking=booking,
-                        seats_list=", ".join([s.seat_number for s in booking.seats.all()])
-                    )
-                    
-                    return HttpResponse("Success", status=200)
-                except Booking.DoesNotExist:
-                    logger.warning(f"Booking not found for order_id: {order_id}")
-                    return HttpResponse("Booking not found", status=404)
-        
-        return HttpResponse("Event ignored", status=200)
-        
-    except Exception as e:
-        logger.error(f"Webhook error: {e}")
-        return HttpResponse(str(e), status=500)
+            mark_booking_confirmed(booking, payment_id)
+            _sync_payment_record(booking, payment_id, 'captured')
+
+            event.status = 'processed'
+            event.payload = data
+            event.signature = signature
+            event.processed_at = timezone.now()
+            event.error_message = ''
+            event.save(update_fields=['status', 'payload', 'signature', 'processed_at', 'error_message'])
+
+        return HttpResponse("Success", status=200)
+    except Booking.DoesNotExist:
+        logger.warning("Booking not found for webhook")
+        return HttpResponse("Booking not found", status=404)
+    except Exception as exc:
+        logger.exception("Webhook error")
+        return HttpResponse(str(exc), status=500)
+
 
 @api_view(['POST'])
 def verify_payment(request):
     """
-    Client-side verification (optional backup for webhook).
-    Validates signature before confirming.
+    Client-side verification as a backup path. Signature verification is still enforced server-side.
     """
     razorpay_order_id = request.data.get('razorpay_order_id')
     razorpay_payment_id = request.data.get('razorpay_payment_id')
     razorpay_signature = request.data.get('razorpay_signature')
-    
+
+    if not all([razorpay_order_id, razorpay_payment_id, razorpay_signature]):
+        return JsonResponse({'status': 'failure', 'error': 'Missing payment verification fields.'}, status=400)
+
     params_dict = {
         'razorpay_order_id': razorpay_order_id,
         'razorpay_payment_id': razorpay_payment_id,
-        'razorpay_signature': razorpay_signature
+        'razorpay_signature': razorpay_signature,
     }
 
     try:
-        # Skip signature verification in mock mode
         if not razorpay_order_id.startswith('order_mock_'):
             client.utility.verify_payment_signature(params_dict)
-        
-        with transaction.atomic():
-            booking = Booking.objects.select_for_update().get(payment_id=razorpay_order_id)
-            if booking.booking_status != 'confirmed':
-                booking.booking_status = 'confirmed'
-                booking.idempotency_key = razorpay_payment_id
-                booking.save()
-                
-                # Transition reservations safely
-                # 1. Clean up any non-locked records for these seats
-                SeatReservation.objects.filter(
-                    show=booking.show,
-                    seat__in=booking.seats.all()
-                ).exclude(status='locked').delete()
 
-                # 2. Transition locked to booked
-                SeatReservation.objects.filter(
-                    show=booking.show,
-                    seat__in=booking.seats.all(),
-                    status='locked'
-                ).update(status='booked')
-                
-                send_confirmation_email_task(
-                    user=booking.user,
-                    movie=booking.show.movie,
-                    show=booking.show,
-                    booking=booking,
-                    seats_list=", ".join([s.seat_number for s in booking.seats.all()])
-                )
-            
-            return JsonResponse({'status': 'success'})
-    except Exception as e:
-        logger.error(f"Payment verification failed: {e}")
-        return JsonResponse({'status': 'failure', 'error': str(e)}, status=400)
+        with transaction.atomic():
+            booking = Booking.objects.select_for_update().prefetch_related('seats').get(payment_id=razorpay_order_id)
+            if booking.booking_status in ['cancelled', 'expired']:
+                return JsonResponse({'status': 'failure', 'error': 'Booking can no longer be confirmed.'}, status=409)
+
+            mark_booking_confirmed(booking, razorpay_payment_id)
+            _sync_payment_record(booking, razorpay_payment_id, 'captured')
+
+        return JsonResponse({'status': 'success'})
+    except Booking.DoesNotExist:
+        return JsonResponse({'status': 'failure', 'error': 'Booking not found.'}, status=404)
+    except Exception as exc:
+        logger.exception("Payment verification failed")
+        return JsonResponse({'status': 'failure', 'error': str(exc)}, status=400)
