@@ -8,7 +8,9 @@
         display: flex;
         justify-content: space-between;
         align-items: center;
+        gap: 20px;
         margin-bottom: 50px;
+        flex-wrap: wrap;
     }
 
     .metrics-grid {
@@ -78,6 +80,13 @@
         height: 100%;
         background: var(--primary);
     }
+
+    @media (max-width: 1100px) {
+        .metrics-grid,
+        .charts-grid {
+            grid-template-columns: 1fr;
+        }
+    }
 </style>
 {% endblock %}
 
@@ -95,17 +104,17 @@
         <div class="glass-card metric-card">
             <div class="metric-label">Total Revenue</div>
             <div class="metric-value">$<span id="totalRevenue">0.00</span></div>
-            <div style="font-size: 12px; color: #4ade80;">↑ 12% vs last month</div>
+            <div style="font-size: 12px; color: #4ade80;">&uarr; 12% vs last month</div>
         </div>
         <div class="glass-card metric-card">
             <div class="metric-label">Avg. Occupancy</div>
             <div class="metric-value"><span id="avgOccupancy">74</span>%</div>
-            <div style="font-size: 12px; color: #4ade80;">↑ 5% peak hours</div>
+            <div style="font-size: 12px; color: #4ade80;">&uarr; 5% peak hours</div>
         </div>
         <div class="glass-card metric-card">
             <div class="metric-label">Cancellation Rate</div>
             <div class="metric-value" style="color: #ff4d4d;"><span id="cancelRate">4.2</span>%</div>
-            <div style="font-size: 12px; color: #ff4d4d;">↓ 2% after UI update</div>
+            <div style="font-size: 12px; color: #ff4d4d;">&darr; 2% after UI update</div>
         </div>
         <div class="glass-card metric-card">
             <div class="metric-label">Active Theaters</div>
@@ -146,45 +155,46 @@
 
 {% block extra_js %}
 <script>
-    // In a real app, this would fetch from /api/analytics/dashboard/
     async function loadStats() {
         const popularTbody = document.querySelector('#popularMovies tbody');
         const hoursDiv = document.getElementById('peakHours');
-        
+
         try {
-            const response = await fetch('/analytics-dashboard/data/');
-            if (!response.ok) throw new Error("Unauthorized or server error");
+            const response = await fetch(buildBackendUrl('/analytics-dashboard/data/'), {
+                credentials: 'include',
+            });
+            if (!response.ok) throw new Error('Unauthorized or server error');
             const data = await response.json();
-            
+
             document.getElementById('totalRevenue').innerText = data.total_revenue.toLocaleString();
             document.getElementById('cancelRate').innerText = data.cancellation_rate;
             document.getElementById('avgOccupancy').innerText = data.average_occupancy;
             document.getElementById('activeTheaters').innerText = data.theatre_performance.length;
 
-            popularTbody.innerHTML = data.popular_movies.map(m => `
+            popularTbody.innerHTML = data.popular_movies.map(movie => `
                 <tr>
-                    <td>${m.movie}</td>
-                    <td>${m.count}</td>
-                    <td><span style="color: #4ade80;">+${Math.floor(Math.random()*20)}%</span></td>
+                    <td>${movie.movie}</td>
+                    <td>${movie.count}</td>
+                    <td><span style="color: #4ade80;">+${Math.floor(Math.random() * 20)}%</span></td>
                 </tr>
             `).join('');
 
-            hoursDiv.innerHTML = data.peak_hours.map(h => `
+            const maxPeakValue = Math.max(...data.peak_hours.map(item => item.total), 1);
+            hoursDiv.innerHTML = data.peak_hours.map(hour => `
                 <div style="margin-bottom: 20px;">
                     <div style="display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 5px;">
-                        <span>${h.hour}:00</span>
-                        <span>${h.total} bookings</span>
+                        <span>${hour.hour}:00</span>
+                        <span>${hour.total} bookings</span>
                     </div>
                     <div class="progress-bar">
-                        <div class="progress-fill" style="width: ${(h.total / Math.max(...data.peak_hours.map(x=>x.total)) * 100)}%"></div>
+                        <div class="progress-fill" style="width: ${(hour.total / maxPeakValue) * 100}%"></div>
                     </div>
                 </div>
             `).join('');
-
-        } catch (e) {
-            console.warn("Using mock data for demonstration:", e);
-            // Default mock data if API is not accessible (e.g. not logged in as admin)
+        } catch (error) {
+            console.warn('Using fallback dashboard message:', error);
             popularTbody.innerHTML = '<tr><td colspan="3" style="text-align:center; padding: 20px;">Login as Admin to see live data</td></tr>';
+            hoursDiv.innerHTML = '<p style="color: var(--text-muted);">Peak-hour analytics are available after admin login.</p>';
         }
     }
 

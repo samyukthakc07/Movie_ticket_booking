@@ -8,9 +8,11 @@
         margin-bottom: 20px;
         transition: transform 0.3s ease;
     }
+
     .booking-card:hover {
         transform: scale(1.02);
     }
+
     .status-badge {
         padding: 5px 12px;
         border-radius: 20px;
@@ -18,10 +20,11 @@
         font-weight: 600;
         text-transform: uppercase;
     }
+
     .status-confirmed { background: rgba(74, 222, 128, 0.2); color: #4ade80; }
     .status-pending { background: rgba(251, 191, 36, 0.2); color: #fbbf24; }
     .status-cancelled { background: rgba(248, 113, 113, 0.2); color: #f87171; }
-    
+
     .movie-poster-mini {
         width: 80px;
         height: 120px;
@@ -29,27 +32,35 @@
         object-fit: cover;
         background: var(--secondary);
     }
+
     .booking-details-grid {
         display: grid;
         grid-template-columns: auto 1fr auto;
         gap: 25px;
         align-items: center;
     }
+
     .empty-state {
         text-align: center;
         padding: 100px 0;
+    }
+
+    @media (max-width: 900px) {
+        .booking-details-grid {
+            grid-template-columns: 1fr;
+        }
     }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="container animate-fade">
-    <div style="margin-bottom: 40px; display: flex; justify-content: space-between; align-items: flex-end;">
+    <div style="margin-bottom: 40px; display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap;">
         <div>
             <h1 style="font-family: 'Playfair Display', serif; font-size: 42px; margin-bottom: 10px;">My Bookings</h1>
             <p style="color: var(--text-muted); font-size: 18px;">Manage your upcoming shows and history.</p>
         </div>
-        <a href="/explore/" class="btn btn-primary">Book New Movie</a>
+        <a href="{{ public_app_base_url }}/explore/" class="btn btn-primary">Book New Movie</a>
     </div>
 
     {% if bookings %}
@@ -58,14 +69,14 @@
                 <div class="glass-card booking-card">
                     <div class="booking-details-grid">
                         <div class="poster-container">
-                            <img src="https://via.placeholder.com/300x450/1a1a1a/ffffff?text={{ booking.show.movie.title|urlencode }}" class="movie-poster-mini" alt="{{ booking.show.movie.title }}">
+                            <img src="{{ booking.show.movie.poster_url|default:'https://images.unsplash.com/photo-1440404653325-ab127d49abc1?auto=format&fit=crop&q=80&w=1000' }}" class="movie-poster-mini" alt="{{ booking.show.movie.title }}">
                         </div>
                         <div class="info-container">
                             <h2 style="font-size: 24px; margin-bottom: 8px;">{{ booking.show.movie.title }}</h2>
-                            <div style="display: flex; gap: 20px; color: var(--text-muted); font-size: 14px;">
-                                <span><i class="fas fa-calendar"></i> {{ booking.show.show_time|date:"D, M d, Y" }}</span>
-                                <span><i class="fas fa-clock"></i> {{ booking.show.show_time|date:"h:i A" }}</span>
-                                <span><i class="fas fa-map-marker-alt"></i> {{ booking.show.screen.theater.name }}</span>
+                            <div style="display: flex; gap: 20px; color: var(--text-muted); font-size: 14px; flex-wrap: wrap;">
+                                <span>Date: {{ booking.show.show_time|date:"D, M d, Y" }}</span>
+                                <span>Time: {{ booking.show.show_time|date:"h:i A" }}</span>
+                                <span>Theater: {{ booking.show.screen.theater.name }}</span>
                             </div>
                             <div style="margin-top: 15px;">
                                 <span style="color: var(--text-muted);">Seats:</span>
@@ -82,9 +93,9 @@
                             </div>
                             <h3 style="margin-top: 15px; font-size: 22px;">${{ booking.total_amount }}</h3>
                             <p style="font-size: 12px; color: var(--text-muted); margin-top: 5px;">ID: #{{ booking.id }}</p>
-                            
+
                             {% if booking.booking_status == 'pending' %}
-                                <div style="margin-top: 20px; display: flex; gap: 10px; justify-content: flex-end;">
+                                <div style="margin-top: 20px; display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap;">
                                     <button onclick="updateBooking('{{ booking.id }}', 'cancel')" class="btn" style="background: rgba(248, 113, 113, 0.1); color: #f87171; border: 1px solid rgba(248, 113, 113, 0.3); padding: 5px 15px; font-size: 13px;">Cancel</button>
                                     <button onclick="updateBooking('{{ booking.id }}', 'confirm')" class="btn" style="background: rgba(74, 222, 128, 0.1); color: #4ade80; border: 1px solid rgba(74, 222, 128, 0.3); padding: 5px 15px; font-size: 13px;">Confirm</button>
                                 </div>
@@ -98,7 +109,7 @@
         <div class="glass-card empty-state">
             <h2 style="margin-bottom: 20px;">No bookings found</h2>
             <p style="color: var(--text-muted); margin-bottom: 30px;">You haven't booked any movies yet. Start your cinematic journey now!</p>
-            <a href="/explore/" class="btn btn-primary">Browse Movies</a>
+            <a href="{{ public_app_base_url }}/explore/" class="btn btn-primary">Browse Movies</a>
         </div>
     {% endif %}
 </div>
@@ -108,20 +119,20 @@
 <script>
     async function updateBooking(bookingId, action) {
         if (!confirm(`Are you sure you want to ${action} this booking?`)) return;
-        
-        const endpoint = `/api/${action}-booking/${bookingId}/`;
+
+        const endpoint = buildBackendUrl(`/api/${action}-booking/${bookingId}/`);
         try {
             const response = await fetch(endpoint, {
                 method: 'POST',
+                credentials: 'include',
                 headers: {
                     'X-CSRFToken': '{{ csrf_token }}',
                     'Content-Type': 'application/json'
                 }
             });
             const data = await response.json();
-            
+
             if (response.ok) {
-                // Show floating notification (simplified for now)
                 location.reload();
             } else {
                 alert(data.error || `Failed to ${action} booking`);

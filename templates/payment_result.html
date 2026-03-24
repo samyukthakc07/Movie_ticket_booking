@@ -52,9 +52,9 @@
     <div class="result-container {{ status }}">
         <div class="glass-card result-card">
             <div class="icon-circle">
-                {% if status == 'success' %}✓{% else %}✕{% endif %}
+                {% if status == 'success' %}&#10003;{% else %}&#10005;{% endif %}
             </div>
-            
+
             <h1>
                 {% if status == 'success' %}
                     Booking Confirmed!
@@ -71,12 +71,12 @@
                 {% endif %}
             </p>
 
-            <div style="display: flex; gap: 20px; justify-content: center;">
-                <a href="/" class="btn btn-primary">Back to Home</a>
+            <div style="display: flex; gap: 20px; justify-content: center; flex-wrap: wrap;">
+                <a href="{{ public_app_base_url }}/" class="btn btn-primary">Back to Home</a>
                 {% if status == 'success' %}
-                    <a href="/api/my-bookings/" class="btn" style="background: var(--glass);">View My Bookings</a>
+                    <a href="{{ public_app_base_url }}/api/my-bookings/" class="btn" style="background: var(--glass);">View My Bookings</a>
                 {% else %}
-                    <a href="/movies/" class="btn" style="background: var(--glass);">Try Another Movie</a>
+                    <a href="{{ public_app_base_url }}/explore/" class="btn" style="background: var(--glass);">Try Another Movie</a>
                 {% endif %}
             </div>
         </div>

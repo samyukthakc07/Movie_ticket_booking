@@ -80,6 +80,20 @@
             padding: 40px 5%;
         }
 
+        .section-title {
+            font-family: 'Playfair Display', serif;
+            font-size: 36px;
+            margin-bottom: 50px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .section-title h2 {
+            font: inherit;
+        }
+
         /* Buttons */
         .btn {
             padding: 12px 28px;
@@ -127,26 +141,48 @@
             .nav-links { display: none; }
         }
     </style>
+    <script>
+        (function () {
+            const appBaseUrl = "{{ public_app_base_url|escapejs }}";
+            const backendBaseUrl = "{{ public_api_base_url|escapejs }}" || appBaseUrl;
+
+            function buildUrl(base, path) {
+                const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+                return `${base || ''}${normalizedPath}`;
+            }
+
+            window.MovieMagicConfig = {
+                appBaseUrl,
+                backendBaseUrl,
+            };
+            window.buildAppUrl = function (path) {
+                return buildUrl(appBaseUrl, path);
+            };
+            window.buildBackendUrl = function (path) {
+                return buildUrl(backendBaseUrl, path);
+            };
+        })();
+    </script>
     {% block extra_css %}{% endblock %}
 </head>
 <body>
     <nav>
-        <a href="/" class="logo">MOVIE MAGIC</a>
+        <a href="{{ public_app_base_url }}/" class="logo">MOVIE MAGIC</a>
         <div class="nav-links">
-            <a href="/">Home</a>
-            <a href="/explore/">Explore Movies</a>
+            <a href="{{ public_app_base_url }}/">Home</a>
+            <a href="{{ public_app_base_url }}/explore/">Explore Movies</a>
             {% if user.is_authenticated %}
-                <a href="/api/my-bookings/">My Bookings</a>
+                <a href="{{ public_app_base_url }}/api/my-bookings/">My Bookings</a>
             {% endif %}
-            <a href="/analytics-dashboard/">Admin Dashboard</a>
+            <a href="{{ public_app_base_url }}/analytics-dashboard/">Admin Dashboard</a>
         </div>
         <div class="user-actions" style="display: flex; align-items: center; gap: 20px;">
             {% if user.is_authenticated %}
                 <span style="font-size: 14px; color: var(--text-muted);">Hello, <strong>{{ user.username }}</strong></span>
-                <a href="{% url 'logout' %}" style="color: var(--text-main); text-decoration: none; font-size: 14px; font-weight: 600;">Logout</a>
+                <a href="{{ public_app_base_url }}{% url 'logout' %}" style="color: var(--text-main); text-decoration: none; font-size: 14px; font-weight: 600;">Logout</a>
             {% else %}
-                <a href="{% url 'login' %}" style="color: var(--text-main); text-decoration: none; font-size: 14px; font-weight: 600;">Sign In</a>
-                <a href="{% url 'signup' %}" class="btn btn-primary" style="padding: 8px 20px; font-size: 14px;">Sign Up</a>
+                <a href="{{ public_app_base_url }}{% url 'login' %}" style="color: var(--text-main); text-decoration: none; font-size: 14px; font-weight: 600;">Sign In</a>
+                <a href="{{ public_app_base_url }}{% url 'signup' %}" class="btn btn-primary" style="padding: 8px 20px; font-size: 14px;">Sign Up</a>
             {% endif %}
         </div>
     </nav>

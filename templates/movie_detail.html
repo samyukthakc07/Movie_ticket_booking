@@ -50,6 +50,7 @@
         display: flex;
         gap: 10px;
         margin-bottom: 20px;
+        flex-wrap: wrap;
     }
 
     .tag {
@@ -72,18 +73,13 @@
         color: var(--primary);
     }
 
-    .cast-list {
-        list-style: none;
-        color: var(--text-muted);
-    }
-
     .trailer-section {
         margin-top: 50px;
     }
 
     .video-container {
         position: relative;
-        padding-bottom: 56.25%; /* 16:9 */
+        padding-bottom: 56.25%;
         height: 0;
         overflow: hidden;
         border-radius: 20px;
@@ -104,6 +100,35 @@
         top: 120px;
         text-align: center;
     }
+
+    @media (max-width: 900px) {
+        .movie-hero {
+            height: auto;
+            padding-top: 120px;
+            padding-bottom: 40px;
+        }
+
+        .hero-content,
+        .detail-grid {
+            grid-template-columns: 1fr;
+            display: grid;
+        }
+
+        .poster-img {
+            margin-bottom: 0;
+            width: 220px;
+            height: 330px;
+        }
+
+        .detail-grid {
+            margin-top: 60px;
+            gap: 30px;
+        }
+
+        .booking-card {
+            position: static;
+        }
+    }
 </style>
 {% endblock %}
 
@@ -115,10 +140,10 @@
             <div class="tags">
                 <span class="tag">{{ movie.genre }}</span>
                 <span class="tag" style="background: rgba(255,255,255,0.1)">{{ movie.language }}</span>
-                <span class="tag" style="background: var(--accent); color: black;">★ {{ movie.rating }}</span>
+                <span class="tag" style="background: var(--accent); color: black;">&#9733; {{ movie.rating }}</span>
             </div>
             <h1>{{ movie.title }}</h1>
-            <p style="color: var(--text-muted); font-size: 18px;">Released on {{ movie.release_date|date:"M d, Y" }} • {{ movie.duration }} mins</p>
+            <p style="color: var(--text-muted); font-size: 18px;">Released on {{ movie.release_date|date:"M d, Y" }} &bull; {{ movie.duration }} mins</p>
         </div>
     </div>
 </div>
@@ -128,10 +153,10 @@
         <div class="glass-card booking-card">
             <h3>Available Shows</h3>
             <p style="margin-bottom: 25px; color: var(--text-muted);">Choose a theater and time below.</p>
-            
+
             <div style="display: flex; flex-direction: column; gap: 15px;">
                 {% for show in shows %}
-                <a href="/api/seats/?show_id={{ show.id }}" class="glass-card" style="display: flex; justify-content: space-between; align-items: center; padding: 15px; text-decoration: none; border: 1px solid var(--glass-border); transition: 0.3s; text-align: left;">
+                <a href="{{ public_app_base_url }}/api/seats/?show_id={{ show.id }}" class="glass-card" style="display: flex; justify-content: space-between; align-items: center; padding: 15px; text-decoration: none; border: 1px solid var(--glass-border); transition: 0.3s; text-align: left;">
                     <div>
                         <strong style="color: white; display: block;">{{ show.screen.theater.name }}</strong>
                         <span style="font-size: 13px; color: var(--text-muted);">{{ show.show_time|date:"D, M d" }}</span>
@@ -150,24 +175,23 @@
 
     <div class="main-info">
         <h3>Synopsis</h3>
-        <p style="font-size: 18px; margin-top:15px; color: var(--text-muted);">
+        <p style="font-size: 18px; margin-top: 15px; color: var(--text-muted);">
             {{ movie.description }}
         </p>
 
         <div class="trailer-section">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; gap: 20px;">
                 <h3>Official Trailer</h3>
                 <span style="font-size: 14px; color: var(--text-muted);">High Definition 4K</span>
             </div>
-            
+
             <div class="video-container">
                 {% if trailer_embed %}
-                <!-- Performance Control: loading="lazy" and secure URL -->
-                <iframe 
-                    src="{{ trailer_embed }}" 
-                    title="YouTube video player" 
-                    frameborder="0" 
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                <iframe
+                    src="{{ trailer_embed }}"
+                    title="YouTube video player"
+                    frameborder="0"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                     allowfullscreen
                     loading="lazy">
                 </iframe>

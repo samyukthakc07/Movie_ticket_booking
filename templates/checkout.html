@@ -20,6 +20,7 @@
     .item-row {
         display: flex;
         justify-content: space-between;
+        gap: 20px;
         padding: 15px 0;
         border-bottom: 1px solid var(--glass-border);
     }
@@ -46,6 +47,12 @@
         align-items: center;
         gap: 15px;
     }
+
+    @media (max-width: 900px) {
+        .checkout-container {
+            grid-template-columns: 1fr;
+        }
+    }
 </style>
 <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 {% endblock %}
@@ -56,7 +63,7 @@
         <div class="main-checkout">
             <div class="glass-card summary-card">
                 <h2>Review Your Order</h2>
-                
+
                 <div class="item-row">
                     <span>Movie</span>
                     <strong>{{ booking.show.movie.title }}</strong>
@@ -83,7 +90,7 @@
             <div class="payment-methods">
                 <h3 style="margin-bottom: 20px;">Secure Payment</h3>
                 <div class="method-card">
-                    <div style="font-size: 24px;">💳</div>
+                    <div style="font-size: 24px;" aria-hidden="true">&#128179;</div>
                     <div>
                         <strong>Razorpay Secure</strong>
                         <p style="font-size: 12px; color: var(--text-muted);">Cards, UPI, Netbanking, Wallets</p>
@@ -114,9 +121,10 @@
         payButton.innerText = 'Initializing...';
 
         try {
-            const response = await fetch('/api/create-razorpay-order/', {
+            const response = await fetch(buildBackendUrl('/api/create-razorpay-order/'), {
                 method: 'POST',
-                headers: { 
+                credentials: 'include',
+                headers: {
                     'Content-Type': 'application/json',
                     'X-CSRFToken': '{{ csrf_token }}'
                 },
@@ -126,66 +134,65 @@
 
             if (data.order_id) {
                 if (data.mock) {
-                    console.log("Mock Mode: Skipping Razorpay UI");
-                    // In mock mode, we simulate a successful payment locally
-                    const verifyRes = await fetch('/api/verify-payment/', {
+                    const verifyRes = await fetch(buildBackendUrl('/api/verify-payment/'), {
                         method: 'POST',
+                        credentials: 'include',
                         headers: {
                             'Content-Type': 'application/json',
                             'X-CSRFToken': '{{ csrf_token }}'
                         },
                         body: JSON.stringify({
                             razorpay_order_id: data.order_id,
-                            razorpay_payment_id: 'pay_mock_' + Math.random().toString(36).substr(2, 9),
+                            razorpay_payment_id: `pay_mock_${Math.random().toString(36).slice(2, 11)}`,
                             razorpay_signature: 'mock_signature'
                         })
                     });
                     const verifyData = await verifyRes.json();
                     if (verifyData.status === 'success') {
-                        window.location.href = '/api/payment-success/';
+                        window.location.href = buildAppUrl('/api/payment-success/');
                     } else {
-                        alert('Mock Verification failed: ' + verifyData.error);
+                        alert(`Mock verification failed: ${verifyData.error}`);
                         location.reload();
                     }
                     return;
                 }
 
                 const options = {
-                    "key": data.key_id,
-                    "amount": data.amount,
-                    "currency": data.currency,
-                    "name": data.name,
-                    "description": data.description,
-                    "order_id": data.order_id,
-                    "handler": async function (response) {
-                        // After successful payment, verify it on server
-                        const verifyRes = await fetch('/api/verify-payment/', {
+                    key: data.key_id,
+                    amount: data.amount,
+                    currency: data.currency,
+                    name: data.name,
+                    description: data.description,
+                    order_id: data.order_id,
+                    handler: async function (paymentResponse) {
+                        const verifyRes = await fetch(buildBackendUrl('/api/verify-payment/'), {
                             method: 'POST',
+                            credentials: 'include',
                             headers: {
                                 'Content-Type': 'application/json',
                                 'X-CSRFToken': '{{ csrf_token }}'
                             },
                             body: JSON.stringify({
-                                razorpay_order_id: response.razorpay_order_id,
-                                razorpay_payment_id: response.razorpay_payment_id,
-                                razorpay_signature: response.razorpay_signature
+                                razorpay_order_id: paymentResponse.razorpay_order_id,
+                                razorpay_payment_id: paymentResponse.razorpay_payment_id,
+                                razorpay_signature: paymentResponse.razorpay_signature
                             })
                         });
                         const verifyData = await verifyRes.json();
                         if (verifyData.status === 'success') {
-                            window.location.href = '/api/payment-success/';
+                            window.location.href = buildAppUrl('/api/payment-success/');
                         } else {
-                            alert('Verification failed: ' + verifyData.error);
+                            alert(`Verification failed: ${verifyData.error}`);
                             location.reload();
                         }
                     },
-                    "prefill": {
-                        "name": data.user_name,
-                        "email": data.user_email
+                    prefill: {
+                        name: data.user_name,
+                        email: data.user_email
                     },
-                    "theme": { "color": "#d9232d" },
-                    "modal": {
-                        "ondismiss": function() {
+                    theme: { color: '#d9232d' },
+                    modal: {
+                        ondismiss: function () {
                             payButton.disabled = false;
                             payButton.innerText = 'Pay Now';
                         }
@@ -194,12 +201,12 @@
                 const rzp = new Razorpay(options);
                 rzp.open();
             } else {
-                alert('Error: ' + data.error);
+                alert(`Error: ${data.error}`);
                 payButton.disabled = false;
                 payButton.innerText = 'Pay Now';
             }
-        } catch (err) {
-            console.error(err);
+        } catch (error) {
+            console.error(error);
             alert('An unexpected error occurred.');
             payButton.disabled = false;
             payButton.innerText = 'Pay Now';

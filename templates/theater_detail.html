@@ -92,13 +92,20 @@
     .showtime-pill:hover span {
         color: rgba(255,255,255,0.8);
     }
+
+    @media (max-width: 900px) {
+        .movie-row {
+            grid-template-columns: 1fr;
+            gap: 24px;
+        }
+    }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="theater-hero">
     <div class="container hero-content animate-fade">
-        <span style="color: var(--accent); font-weight: 700; letter-spacing: 2px;">📍 {{ theater.location }}</span>
+        <span style="color: var(--accent); font-weight: 700; letter-spacing: 2px;">Location: {{ theater.location }}</span>
         <h1>{{ theater.name }}</h1>
         <p style="color: var(--text-muted); font-size: 18px;">Now showing premium cinematic experiences near you.</p>
     </div>
@@ -111,18 +118,18 @@
 
     {% for item in movie_shows %}
     <div class="movie-row animate-fade">
-        <img src="{{ item.movie.poster_url|default:'https://images.unsplash.com/photo-1440404653325-ab127d49abc1?auto=format&fit=crop&q=80&w=1000' }}" class="movie-poster">
+        <img src="{{ item.movie.poster_url|default:'https://images.unsplash.com/photo-1440404653325-ab127d49abc1?auto=format&fit=crop&q=80&w=1000' }}" class="movie-poster" alt="{{ item.movie.title }}">
         <div>
-            <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+            <div style="display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap;">
                 <span class="tag" style="background: var(--primary); padding: 4px 12px; border-radius: 50px; font-size: 12px;">{{ item.movie.genre }}</span>
                 <span class="tag" style="background: rgba(255,255,255,0.1); padding: 4px 12px; border-radius: 50px; font-size: 12px;">{{ item.movie.language }}</span>
             </div>
             <h3 style="font-size: 28px; font-family: 'Playfair Display', serif;">{{ item.movie.title }}</h3>
             <p style="color: var(--text-muted); margin-top: 10px; line-height: 1.6;">{{ item.movie.description|truncatewords:40 }}</p>
-            
+
             <div class="showtimes-grid">
                 {% for show in item.shows %}
-                <a href="/api/seats/?show_id={{ show.id }}" class="showtime-pill">
+                <a href="{{ public_app_base_url }}/api/seats/?show_id={{ show.id }}" class="showtime-pill">
                     <strong>{{ show.show_time|date:"h:i A" }}</strong>
                     <span>{{ show.show_time|date:"D, M d" }}</span>
                 </a>
@@ -133,7 +140,7 @@
     {% empty %}
     <div class="glass-card" style="padding: 100px; text-align: center;">
         <h3 style="color: var(--text-muted);">No movies are currently scheduled at this theater.</h3>
-        <a href="/explore/" class="btn btn-primary" style="margin-top: 20px;">Browse All Movies</a>
+        <a href="{{ public_app_base_url }}/explore/" class="btn btn-primary" style="margin-top: 20px;">Browse All Movies</a>
     </div>
     {% endfor %}
 </div>

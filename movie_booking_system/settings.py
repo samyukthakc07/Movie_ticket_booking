@@ -19,6 +19,14 @@ from django.core.exceptions import ImproperlyConfigured
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
+def _env_list(name):
+    return [item.strip() for item in os.environ.get(name, '').split(',') if item.strip()]
+
+
+def _env_bool(name, default=False):
+    return os.environ.get(name, str(default)).strip().lower() == 'true'
+
+
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
@@ -45,6 +53,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'corsheaders',
 
     'rest_framework',
 
@@ -57,6 +66,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -78,6 +88,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'movie_booking_system.context_processors.public_urls',
             ],
         },
     },
@@ -134,6 +145,19 @@ USE_TZ = True
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_DIRS = []
+PUBLIC_APP_BASE_URL = os.environ.get('PUBLIC_APP_BASE_URL', '').rstrip('/')
+PUBLIC_API_BASE_URL = os.environ.get('PUBLIC_API_BASE_URL', PUBLIC_APP_BASE_URL).rstrip('/')
+CORS_ALLOWED_ORIGINS = _env_list('DJANGO_CORS_ALLOWED_ORIGINS')
+
+if PUBLIC_APP_BASE_URL.startswith(('http://', 'https://')):
+    if PUBLIC_APP_BASE_URL not in CORS_ALLOWED_ORIGINS:
+        CORS_ALLOWED_ORIGINS.append(PUBLIC_APP_BASE_URL)
+    if PUBLIC_APP_BASE_URL not in CSRF_TRUSTED_ORIGINS:
+        CSRF_TRUSTED_ORIGINS.append(PUBLIC_APP_BASE_URL)
+
+CORS_ALLOW_CREDENTIALS = _env_bool('DJANGO_CORS_ALLOW_CREDENTIALS', bool(CORS_ALLOWED_ORIGINS))
+SESSION_COOKIE_SAMESITE = os.environ.get('DJANGO_SESSION_COOKIE_SAMESITE', 'Lax')
+CSRF_COOKIE_SAMESITE = os.environ.get('DJANGO_CSRF_COOKIE_SAMESITE', 'Lax')
 STORAGES = {
     'default': {
         'BACKEND': 'django.core.files.storage.FileSystemStorage',

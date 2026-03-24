@@ -86,6 +86,7 @@
         justify-content: center;
         gap: 30px;
         margin-bottom: 50px;
+        flex-wrap: wrap;
     }
 
     .legend-item {
@@ -96,7 +97,6 @@
         color: var(--text-muted);
     }
 
-    /* Floating Checkout Bar */
     .checkout-bar {
         position: fixed;
         bottom: 30px;
@@ -133,6 +133,24 @@
 
     .price-info h2 { font-size: 24px; }
     .price-info p { font-size: 12px; color: var(--text-muted); }
+
+    @media (max-width: 760px) {
+        .seats-grid {
+            gap: 8px;
+        }
+
+        .seat {
+            width: 32px;
+            height: 32px;
+            font-size: 10px;
+        }
+
+        .checkout-bar {
+            padding: 18px 20px;
+            flex-direction: column;
+            gap: 16px;
+        }
+    }
 </style>
 {% endblock %}
 
@@ -165,10 +183,10 @@
         <p id="selectedCount">0 Seats Selected</p>
         <h2 id="totalPrice">$0.00</h2>
     </div>
-    
-    <div style="display: flex; align-items: center; gap: 25px;">
+
+    <div style="display: flex; align-items: center; gap: 25px; flex-wrap: wrap; justify-content: center;">
         <div class="timer-pill" id="timerPill" style="display: none;">
-            <span>⏱</span> <span id="timerText">02:00</span>
+            <span aria-hidden="true">&#9201;</span> <span id="timerText">02:00</span>
         </div>
         <button class="btn btn-primary" onclick="proceedToPayment()">Confirm Reservation</button>
     </div>
@@ -178,59 +196,58 @@
 {% block extra_js %}
 <script>
     const urlParams = new URLSearchParams(window.location.search);
-    const showId = urlParams.get('show_id') || 1; // Default for demo
-    let selectedSeats = new Map(); // ID -> Number
+    const showId = urlParams.get('show_id') || 1;
+    let selectedSeats = new Map();
     let seatPrice = 0;
     let timerInterval;
 
     async function loadLayout() {
         try {
-            const response = await fetch(`/api/seat-layout/?show_id=${showId}`);
+            const response = await fetch(buildBackendUrl(`/api/seat-layout/?show_id=${showId}`), {
+                credentials: 'include',
+            });
             const data = await response.json();
 
             document.getElementById('movieTitle').innerText = data.show_title;
             const date = new Date(data.show_time);
-            document.getElementById('showMeta').innerText = `${data.theater} • ${date.toLocaleDateString()} at ${date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
+            document.getElementById('showMeta').innerText = `${data.theater} - ${date.toLocaleDateString()} at ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
             seatPrice = parseFloat(data.price);
 
             const grid = document.getElementById('seatsGrid');
             grid.innerHTML = data.seats.map(seat => `
-                <div class="seat ${seat.status}" 
-                     data-id="${seat.seat_id}" 
+                <div class="seat ${seat.status}"
+                     data-id="${seat.seat_id}"
                      data-number="${seat.seat_number}"
                      onclick="toggleSeat(this)">
                     ${seat.seat_number}
                 </div>
             `).join('');
-
-        } catch (err) {
-            console.error(err);
+        } catch (error) {
+            console.error(error);
         }
     }
 
-    // Refresh layout periodically to release expired seats for all users
-    const pollInterval = setInterval(() => {
-        if (selectedSeats.size === 0) { // Only auto-refresh if user hasn't started selection to avoid UI jumps
+    setInterval(() => {
+        if (selectedSeats.size === 0) {
             loadLayout();
         }
     }, 15000);
 
-    async function toggleSeat(el) {
-        if (el.classList.contains('booked') || el.classList.contains('locked')) return;
+    async function toggleSeat(element) {
+        if (element.classList.contains('booked') || element.classList.contains('locked')) return;
 
-        const seatId = el.dataset.id;
-        const seatNum = el.dataset.number;
+        const seatId = element.dataset.id;
+        const seatNumber = element.dataset.number;
 
-        if (el.classList.contains('selected')) {
-            // Deselect
-            el.classList.remove('selected');
+        if (element.classList.contains('selected')) {
+            element.classList.remove('selected');
             selectedSeats.delete(seatId);
         } else {
-            // Select - Call API to Lock
             try {
-                const response = await fetch('/api/reserve-seat/', {
+                const response = await fetch(buildBackendUrl('/api/reserve-seat/'), {
                     method: 'POST',
-                    headers: { 
+                    credentials: 'include',
+                    headers: {
                         'Content-Type': 'application/json',
                         'X-CSRFToken': '{{ csrf_token }}'
                     },
@@ -243,15 +260,15 @@
                 const data = await response.json();
 
                 if (data.status === 'success') {
-                    el.classList.add('selected');
-                    selectedSeats.set(seatId, seatNum);
+                    element.classList.add('selected');
+                    selectedSeats.set(seatId, seatNumber);
                     if (selectedSeats.size === 1) startTimer(data.locked_until);
                 } else {
                     alert(data.message);
-                    loadLayout(); // Refresh to show current status
+                    loadLayout();
                 }
-            } catch (err) {
-                console.error(err);
+            } catch (error) {
+                console.error(error);
             }
         }
         updateBar();
@@ -278,7 +295,7 @@
         pill.style.display = 'flex';
 
         const expiry = new Date(expiryStr).getTime();
-        
+
         clearInterval(timerInterval);
         timerInterval = setInterval(() => {
             const now = new Date().getTime();
@@ -286,7 +303,7 @@
 
             if (diff <= 0) {
                 clearInterval(timerInterval);
-                alert("Session expired! Your seats have been released.");
+                alert('Session expired. Your seats have been released.');
                 location.reload();
                 return;
             }
@@ -304,17 +321,21 @@
 
     async function proceedToPayment() {
         if ("{{ user.is_authenticated }}" === "False") {
-            alert("Please sign in to book tickets.");
-            window.location.href = "{% url 'login' %}?next=" + window.location.pathname + window.location.search;
+            const nextPath = `${window.location.pathname}${window.location.search}`;
+            window.location.href = `${buildAppUrl("{% url 'login' %}")}?next=${encodeURIComponent(nextPath)}`;
             return;
         }
 
         const seatIds = Array.from(selectedSeats.keys());
-        
+
         try {
-            const response = await fetch('/api/create-booking/', {
+            const response = await fetch(buildBackendUrl('/api/create-booking/'), {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+                credentials: 'include',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
                 body: JSON.stringify({
                     show_id: showId,
                     seat_ids: seatIds,
@@ -324,14 +345,14 @@
             const data = await response.json();
 
             if (data.status === 'success') {
-                window.location.href = `/api/checkout/${data.booking_id}/`;
+                window.location.href = buildAppUrl(`/api/checkout/${data.booking_id}/`);
             } else {
-                alert("Error: " + data.error);
-                location.reload(); // Likely timed out
+                alert(`Error: ${data.error}`);
+                location.reload();
             }
-        } catch (err) {
-            console.error(err);
-            alert("Something went wrong. Please try again.");
+        } catch (error) {
+            console.error(error);
+            alert('Something went wrong. Please try again.');
         }
     }
 

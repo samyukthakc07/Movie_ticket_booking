@@ -88,8 +88,11 @@
             <h1>Join Movie Magic</h1>
             <p style="color: var(--text-muted); margin-bottom: 40px;">Create an account to start booking.</p>
 
-            <form method="POST" class="auth-form">
+            <form method="POST" action="{{ public_app_base_url }}{% url 'signup' %}" class="auth-form">
                 {% csrf_token %}
+                {% if next_url %}
+                    <input type="hidden" name="next" value="{{ next_url }}">
+                {% endif %}
                 
                 {% if messages %}
                     {% for message in messages %}
@@ -116,7 +119,7 @@
             </form>
 
             <div class="auth-links">
-                Already have an account? <a href="{% url 'login' %}">Sign In</a>
+                Already have an account? <a href="{{ public_app_base_url }}{% url 'login' %}{% if next_url %}?next={{ next_url|urlencode }}{% endif %}">Sign In</a>
             </div>
         </div>
     </div>

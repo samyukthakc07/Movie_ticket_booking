@@ -80,8 +80,11 @@
             <h1>Welcome Back</h1>
             <p style="color: var(--text-muted); margin-bottom: 40px;">Please enter your details to sign in.</p>
 
-            <form method="POST" class="auth-form">
+            <form method="POST" action="{{ public_app_base_url }}{% url 'login' %}" class="auth-form">
                 {% csrf_token %}
+                {% if next_url %}
+                    <input type="hidden" name="next" value="{{ next_url }}">
+                {% endif %}
                 
                 {% if messages %}
                     {% for message in messages %}
@@ -105,7 +108,7 @@
             </form>
 
             <div class="auth-links">
-                Don't have an account? <a href="{% url 'signup' %}">Sign Up</a>
+                Don't have an account? <a href="{{ public_app_base_url }}{% url 'signup' %}{% if next_url %}?next={{ next_url|urlencode }}{% endif %}">Sign Up</a>
             </div>
         </div>
     </div>

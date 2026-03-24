@@ -39,15 +39,6 @@
         padding: 100px 0;
     }
 
-    .section-title {
-        font-family: 'Playfair Display', serif;
-        font-size: 36px;
-        margin-bottom: 50px;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-    }
-
     .movie-strip {
         display: flex;
         gap: 30px;
@@ -126,8 +117,8 @@
                 Experience the magic of cinema like never before. From global blockbusters to indie gems, your perfect movie night starts here.
             </p>
             <div style="display: flex; gap: 20px;">
-                <a href="/explore/" class="btn btn-primary" style="padding: 18px 40px;">Browse All Movies</a>
-                <a href="/analytics-dashboard/" class="btn" style="background: var(--glass); padding: 18px 40px;">Admin Insights</a>
+                <a href="{{ public_app_base_url }}/explore/" class="btn btn-primary" style="padding: 18px 40px;">Browse All Movies</a>
+                <a href="{{ public_app_base_url }}/analytics-dashboard/" class="btn" style="background: var(--glass); padding: 18px 40px;">Admin Insights</a>
             </div>
         </div>
     </div>
@@ -147,10 +138,10 @@
         <h2>Explore Genres</h2>
     </div>
     <div class="categories-grid">
-        <div class="cat-card" onclick="location.href='/explore/?genre=Action'">Action</div>
-        <div class="cat-card" onclick="location.href='/explore/?genre=Sci-Fi'">Sci-Fi</div>
-        <div class="cat-card" onclick="location.href='/explore/?genre=Drama'">Drama</div>
-        <div class="cat-card" onclick="location.href='/explore/?genre=Horror'">Horror</div>
+        <div class="cat-card" onclick="location.href=buildAppUrl('/explore/?genre=Action')">Action</div>
+        <div class="cat-card" onclick="location.href=buildAppUrl('/explore/?genre=Sci-Fi')">Sci-Fi</div>
+        <div class="cat-card" onclick="location.href=buildAppUrl('/explore/?genre=Drama')">Drama</div>
+        <div class="cat-card" onclick="location.href=buildAppUrl('/explore/?genre=Horror')">Horror</div>
     </div>
 </div>
 {% endblock %}
@@ -159,24 +150,28 @@
 <script>
     async function loadTheaters() {
         try {
-            const response = await fetch('/api/theaters/');
+            const response = await fetch(buildBackendUrl('/api/theaters/'));
             const data = await response.json();
-            
+
             const strip = document.getElementById('theaterStrip');
-            strip.innerHTML = data.map(theater => `
-                <div class="strip-card" onclick="location.href='/theater/${theater.id}/'">
-                    <img src="${theater.image || 'https://images.unsplash.com/photo-1517604401157-538e9663ec1d?auto=format&fit=crop&q=80&w=800'}" alt="${theater.name}">
-                    <div class="card-overlay">
-                        <span style="color: var(--accent); font-weight: 700;">📍 ${theater.location}</span>
-                        <h3>${theater.name}</h3>
-                        <p style="font-size: 13px; color: var(--text-muted);">Experience premium cinema at ${theater.name}</p>
+            strip.innerHTML = data.map(theater => {
+                const theaterUrl = buildAppUrl(`/theater/${theater.id}/`);
+                return `
+                    <div class="strip-card" onclick="location.href='${theaterUrl}'">
+                        <img src="${theater.image || 'https://images.unsplash.com/photo-1517604401157-538e9663ec1d?auto=format&fit=crop&q=80&w=800'}" alt="${theater.name}">
+                        <div class="card-overlay">
+                            <span style="color: var(--accent); font-weight: 700;">Location: ${theater.location}</span>
+                            <h3>${theater.name}</h3>
+                            <p style="font-size: 13px; color: var(--text-muted);">Experience premium cinema at ${theater.name}</p>
+                        </div>
                     </div>
-                </div>
-            `).join('');
-        } catch (e) {
-            console.error(e);
+                `;
+            }).join('');
+        } catch (error) {
+            console.error(error);
         }
     }
+
     loadTheaters();
 </script>
 {% endblock %}
