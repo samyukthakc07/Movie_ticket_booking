@@ -2,6 +2,7 @@ from urllib.parse import parse_qs, urlparse
 
 from django.core.paginator import Paginator
 from django.db.models import Count, Exists, OuterRef
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, render
 from django.utils import timezone
 from rest_framework.decorators import api_view
@@ -97,11 +98,17 @@ def movie_list_page(request):
 
 
 def home(request):
-    # Auto-populate for free-tier hosting (Render/Vercel) if DB is empty
-    if not Movie.objects.exists():
-        from populate_demo import populate
-        populate()
     return render(request, "home.html")
+
+
+def debug_populate(request):
+    import traceback
+    from populate_demo import populate
+    try:
+        populate()
+        return HttpResponse("Population successful")
+    except Exception as e:
+        return HttpResponse(f"Population failed: {str(e)}<br><pre>{traceback.format_exc()}</pre>")
 
 
 def movie_detail(request, movie_id):
