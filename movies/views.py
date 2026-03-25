@@ -97,6 +97,13 @@ def movie_list_page(request):
 
 
 def home(request):
+    # Auto-populate for free-tier hosting (Render/Vercel) if DB is empty
+    try:
+        if not Movie.objects.exists():
+            from populate_demo import populate
+            populate()
+    except Exception:
+        pass
     return render(request, "home.html")
 
 

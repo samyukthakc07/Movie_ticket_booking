@@ -345,7 +345,7 @@
             const data = await response.json();
 
             if (data.status === 'success') {
-                window.location.href = buildAppUrl(`/api/checkout/${data.booking_id}/`);
+                window.location.href = buildAppUrl(`/checkout/${data.booking_id}/`);
             } else {
                 alert(`Error: ${data.error}`);
                 location.reload();

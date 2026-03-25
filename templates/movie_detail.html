@@ -156,7 +156,7 @@
 
             <div style="display: flex; flex-direction: column; gap: 15px;">
                 {% for show in shows %}
-                <a href="{{ public_app_base_url }}/api/seats/?show_id={{ show.id }}" class="glass-card" style="display: flex; justify-content: space-between; align-items: center; padding: 15px; text-decoration: none; border: 1px solid var(--glass-border); transition: 0.3s; text-align: left;">
+                <a href="{{ public_app_base_url }}/seats/?show_id={{ show.id }}" class="glass-card" style="display: flex; justify-content: space-between; align-items: center; padding: 15px; text-decoration: none; border: 1px solid var(--glass-border); transition: 0.3s; text-align: left;">
                     <div>
                         <strong style="color: white; display: block;">{{ show.screen.theater.name }}</strong>
                         <span style="font-size: 13px; color: var(--text-muted);">{{ show.show_time|date:"D, M d" }}</span>

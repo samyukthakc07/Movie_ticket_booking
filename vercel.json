@@ -2,8 +2,8 @@
   "version": 2,
   "rewrites": [
     {
-      "source": "/(.*)",
-      "destination": "https://movie-ticket-booking-cylc.onrender.com/$1"
+      "source": "/:path*",
+      "destination": "https://movie-ticket-booking-cylc.onrender.com/:path*"
     }
   ]
 }

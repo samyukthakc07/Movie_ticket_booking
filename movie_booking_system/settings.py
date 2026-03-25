@@ -41,6 +41,16 @@ CSRF_TRUSTED_ORIGINS = [
     origin for origin in os.environ.get('DJANGO_CSRF_TRUSTED_ORIGINS', '').split(',') if origin
 ]
 
+# Auto-derive allowed host from public app URL for easiest deployment
+PUBLIC_APP_BASE_URL = os.environ.get('PUBLIC_APP_BASE_URL', '').rstrip('/')
+if PUBLIC_APP_BASE_URL.startswith(('http://', 'https://')):
+    from urllib.parse import urlparse
+    _domain = urlparse(PUBLIC_APP_BASE_URL).netloc
+    if _domain and _domain not in ALLOWED_HOSTS:
+        ALLOWED_HOSTS.append(_domain)
+    if PUBLIC_APP_BASE_URL not in CSRF_TRUSTED_ORIGINS:
+        CSRF_TRUSTED_ORIGINS.append(PUBLIC_APP_BASE_URL)
+
 import dj_database_url
 
 
@@ -145,7 +155,7 @@ USE_TZ = True
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_DIRS = []
-PUBLIC_APP_BASE_URL = os.environ.get('PUBLIC_APP_BASE_URL', '').rstrip('/')
+PUBLIC_APP_BASE_URL = PUBLIC_APP_BASE_URL.rstrip('/') # Use the one already defined
 PUBLIC_API_BASE_URL = os.environ.get('PUBLIC_API_BASE_URL', PUBLIC_APP_BASE_URL).rstrip('/')
 CORS_ALLOWED_ORIGINS = _env_list('DJANGO_CORS_ALLOWED_ORIGINS')
 

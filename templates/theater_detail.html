@@ -129,7 +129,7 @@
 
             <div class="showtimes-grid">
                 {% for show in item.shows %}
-                <a href="{{ public_app_base_url }}/api/seats/?show_id={{ show.id }}" class="showtime-pill">
+                <a href="{{ public_app_base_url }}/seats/?show_id={{ show.id }}" class="showtime-pill">
                     <strong>{{ show.show_time|date:"h:i A" }}</strong>
                     <span>{{ show.show_time|date:"D, M d" }}</span>
                 </a>
