@@ -1,9 +1,9 @@
 {
-  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "version": 2,
   "rewrites": [
     {
-      "source": "/:path*",
-      "destination": "https://movie-ticket-booking-cylc.onrender.com/:path*"
+      "source": "/(.*)",
+      "destination": "https://movie-ticket-booking-cylc.onrender.com/$1"
     }
   ]
 }
