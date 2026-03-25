@@ -135,6 +135,15 @@
     </div>
 
     <div class="section-title" style="margin-top: 100px;">
+        <h2>Trending Now</h2>
+        <p style="color: var(--text-muted); font-size: 14px;">Most booked movies this week</p>
+    </div>
+    
+    <div class="movie-strip" id="movieStrip">
+        <!-- JS Populated -->
+    </div>
+
+    <div class="section-title" style="margin-top: 100px;">
         <h2>Explore Genres</h2>
     </div>
     <div class="categories-grid">
@@ -148,30 +157,43 @@
 
 {% block extra_js %}
 <script>
-    async function loadTheaters() {
-        try {
-            const response = await fetch(buildBackendUrl('/api/theaters/'));
-            const data = await response.json();
+    async function loadContent() {
+        const theaterStrip = document.getElementById('theaterStrip');
+        const movieStrip = document.getElementById('movieStrip');
 
-            const strip = document.getElementById('theaterStrip');
-            strip.innerHTML = data.map(theater => {
-                const theaterUrl = buildAppUrl(`/theater/${theater.id}/`);
-                return `
-                    <div class="strip-card" onclick="location.href='${theaterUrl}'">
-                        <img src="${theater.image || 'https://images.unsplash.com/photo-1517604401157-538e9663ec1d?auto=format&fit=crop&q=80&w=800'}" alt="${theater.name}">
-                        <div class="card-overlay">
-                            <span style="color: var(--accent); font-weight: 700;">Location: ${theater.location}</span>
-                            <h3>${theater.name}</h3>
-                            <p style="font-size: 13px; color: var(--text-muted);">Experience premium cinema at ${theater.name}</p>
-                        </div>
+        try {
+            // Load Theaters
+            const tResponse = await fetch(buildBackendUrl('/theaters/'));
+            const tData = await tResponse.json();
+            theaterStrip.innerHTML = tData.map(theater => `
+                <div class="strip-card animate-fade" onclick="location.href=buildAppUrl('/theater/${theater.id}/')">
+                    <img src="${theater.image || 'https://images.unsplash.com/photo-1517604401157-538e9663ec1d?auto=format&fit=crop&q=80&w=800'}" alt="${theater.name}">
+                    <div class="card-overlay">
+                        <span style="color: var(--accent); font-weight: 700;">${theater.location}</span>
+                        <h3>${theater.name}</h3>
                     </div>
-                `;
-            }).join('');
+                </div>
+            `).join('');
+
+            // Load Movies
+            const mResponse = await fetch(buildBackendUrl('/movies/?sort=-rating'));
+            const mData = await mResponse.json();
+            movieStrip.innerHTML = mData.movies.slice(0, 6).map(movie => `
+                <div class="strip-card animate-fade" onclick="location.href=buildAppUrl('/movie/${movie.id}/')">
+                    <img src="${movie.poster_url || 'https://images.unsplash.com/photo-1440404653325-ab127d49abc1?auto=format&fit=crop&q=80&w=800'}" alt="${movie.title}">
+                    <div class="card-overlay">
+                        <span style="color: var(--accent); font-weight: 700;">&#9733; ${movie.rating}</span>
+                        <h3>${movie.title}</h3>
+                        <p style="font-size: 13px; color: var(--text-muted);">${movie.genre}</p>
+                    </div>
+                </div>
+            `).join('');
+
         } catch (error) {
-            console.error(error);
+            console.error('Home content load error:', error);
         }
     }
 
-    loadTheaters();
+    loadContent();
 </script>
 {% endblock %}
