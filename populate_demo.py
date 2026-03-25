@@ -17,39 +17,14 @@ def populate():
     if not Movie.objects.exists():
         print("Creating sample movies...")
         sample_movies = [
-            {
-                "title": "Interstellar",
-                "genre": "Sci-Fi",
-                "language": "English",
-                "duration": 169,
-                "rating": 8.6,
-                "release_date": "2014-11-07",
-                "description": "A team of explorers travel through a wormhole in space in an attempt to ensure humanity's survival.",
-                "poster_url": "https://images.unsplash.com/photo-1446776811953-b23d57bd21aa?auto=format&fit=crop&q=80&w=1000",
-                "trailer_url": "https://www.youtube.com/watch?v=zSWdZVtXT7E"
-            },
-            {
-                "title": "The Dark Knight",
-                "genre": "Action",
-                "language": "English",
-                "duration": 152,
-                "rating": 9.0,
-                "release_date": "2008-07-18",
-                "description": "When the menace known as the Joker wreaks havoc and chaos on the people of Gotham.",
-                "poster_url": "https://images.unsplash.com/photo-1478720568477-152d9b164e26?auto=format&fit=crop&q=80&w=1000",
-                "trailer_url": "https://www.youtube.com/watch?v=EXeTwQWrcwY"
-            },
-            {
-                "title": "Parasite",
-                "genre": "Drama",
-                "language": "Korean",
-                "duration": 132,
-                "rating": 8.5,
-                "release_date": "2019-05-30",
-                "description": "Greed and class discrimination threaten the newly formed symbiotic relationship between the wealthy Park family and the destitute Kim clan.",
-                "poster_url": "https://images.unsplash.com/photo-1536440136628-849c177e76a1?auto=format&fit=crop&q=80&w=1000",
-                "trailer_url": "https://www.youtube.com/watch?v=5xH0HfJHsaY"
-            }
+            {"title": "Interstellar", "genre": "Sci-Fi", "language": "English", "duration": 169, "rating": 8.6, "release_date": "2014-11-07", "description": "Explorers travel through a wormhole to save humanity.", "poster_url": "https://images.unsplash.com/photo-1446776811953-b23d57bd21aa?auto=format&fit=crop&q=80&w=1000", "trailer_url": "https://www.youtube.com/watch?v=zSWdZVtXT7E"},
+            {"title": "The Dark Knight", "genre": "Action", "language": "English", "duration": 152, "rating": 9.0, "release_date": "2008-07-18", "description": "The Joker wreaks havoc on Gotham.", "poster_url": "https://images.unsplash.com/photo-1478720568477-152d9b164e26?auto=format&fit=crop&q=80&w=1000", "trailer_url": "https://www.youtube.com/watch?v=EXeTwQWrcwY"},
+            {"title": "Parasite", "genre": "Drama", "language": "Korean", "duration": 132, "rating": 8.5, "release_date": "2019-05-30", "description": "Greed and class discrimination in a wealthy Park family.", "poster_url": "https://images.unsplash.com/photo-1536440136628-849c177e76a1?auto=format&fit=crop&q=80&w=1000", "trailer_url": "https://www.youtube.com/watch?v=5xH0HfJHsaY"},
+            {"title": "Inception", "genre": "Sci-Fi", "language": "English", "duration": 148, "rating": 8.8, "release_date": "2010-07-16", "description": "A thief steals secrets through dream-sharing technology.", "poster_url": "https://images.unsplash.com/photo-1485846234645-a62644f84728?auto=format&fit=crop&q=80&w=1000", "trailer_url": "https://www.youtube.com/watch?v=YoHD9XEInc0"},
+            {"title": "Spider-Man: Across the Spider-Verse", "genre": "Animation", "language": "English", "duration": 140, "rating": 8.7, "release_date": "2023-06-02", "description": "Miles Morales journeys across the Multiverse.", "poster_url": "https://images.unsplash.com/photo-1509248961158-e54f6934749c?auto=format&fit=crop&q=80&w=1000", "trailer_url": "https://www.youtube.com/watch?v=shW9i6k8cB0"},
+            {"title": "The Godfather", "genre": "Crime", "language": "English", "duration": 175, "rating": 9.2, "release_date": "1972-03-24", "description": "An organized crime dynasty's patriarch transfers control.", "poster_url": "https://images.unsplash.com/photo-1440404653325-ab127d49abc1?auto=format&fit=crop&q=80&w=1000", "trailer_url": "https://www.youtube.com/watch?v=UaVTIH8adsc"},
+            {"title": "Spirited Away", "genre": "Animation", "language": "Japanese", "duration": 125, "rating": 8.6, "release_date": "2001-07-20", "description": "A girl wanders into a world ruled by gods and spirits.", "poster_url": "https://images.unsplash.com/photo-1541462608141-ad60397d4bc7?auto=format&fit=crop&q=80&w=1000", "trailer_url": "https://www.youtube.com/watch?v=ByXuk9QqQkk"},
+            {"title": "Everything Everywhere All At Once", "genre": "Sci-Fi", "language": "English", "duration": 139, "rating": 8.1, "release_date": "2022-03-25", "description": "An unlikely hero fights bizarre dangers from the multiverse.", "poster_url": "https://images.unsplash.com/photo-1444464666168-49d633b867ad?auto=format&fit=crop&q=80&w=1000", "trailer_url": "https://www.youtube.com/watch?v=wxN1T1uxQ2g"}
         ]
         for m_data in sample_movies:
             Movie.objects.create(**m_data)

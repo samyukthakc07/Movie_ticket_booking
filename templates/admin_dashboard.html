@@ -148,6 +148,11 @@
             <div id="peakHours">
                 <!-- JS populated bars -->
             </div>
+            
+            <h3 style="margin-top: 40px; margin-bottom: 20px;">Theater Occupancy</h3>
+            <div id="theaterPerformance">
+                <!-- JS populated -->
+            </div>
         </div>
     </div>
 </div>
@@ -180,7 +185,7 @@
             `).join('');
 
             const maxPeakValue = Math.max(...data.peak_hours.map(item => item.total), 1);
-            hoursDiv.innerHTML = data.peak_hours.map(hour => `
+            hoursDiv.innerHTML = data.peak_hours.slice(0, 6).map(hour => `
                 <div style="margin-bottom: 20px;">
                     <div style="display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 5px;">
                         <span>${hour.hour}:00</span>
@@ -191,10 +196,23 @@
                     </div>
                 </div>
             `).join('');
+
+            document.getElementById('theaterPerformance').innerHTML = data.theatre_performance.map(t => `
+                <div style="margin-bottom: 15px;">
+                    <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 5px;">
+                        <span>${t.theatre}</span>
+                        <span style="color: var(--primary); font-weight:700;">${t.occupancy_rate}%</span>
+                    </div>
+                    <div class="progress-bar" style="height: 4px;">
+                        <div class="progress-fill" style="width: ${t.occupancy_rate}%"></div>
+                    </div>
+                </div>
+            `).join('');
         } catch (error) {
             console.warn('Using fallback dashboard message:', error);
             popularTbody.innerHTML = '<tr><td colspan="3" style="text-align:center; padding: 20px;">Login as Admin to see live data</td></tr>';
             hoursDiv.innerHTML = '<p style="color: var(--text-muted);">Peak-hour analytics are available after admin login.</p>';
+            document.getElementById('theaterPerformance').innerHTML = '<p style="color: var(--text-muted);">Theater occupancy is computed in real-time.</p>';
         }
     }
 
