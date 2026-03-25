@@ -1,0 +1,9 @@
+.venv/
+db.sqlite3
+.git/
+.vscode/
+*.pyc
+__pycache__/
+staticfiles/
+media/
+node_modules/
