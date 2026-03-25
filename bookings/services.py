@@ -1,4 +1,5 @@
 import logging
+import threading
 from datetime import timedelta
 
 from django.conf import settings
@@ -78,6 +79,10 @@ def queue_booking_confirmation_email(booking):
         delivery.next_retry_at = timezone.now()
         delivery.last_error = ''
         delivery.save(update_fields=['subject', 'status', 'next_retry_at', 'last_error', 'updated_at'])
+
+    # Trigger background delivery for "background queue" requirement
+    thread = threading.Thread(target=send_due_email_deliveries)
+    thread.start()
 
     return delivery
 
