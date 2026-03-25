@@ -23,6 +23,7 @@ def populate():
                 "language": "English",
                 "duration": 169,
                 "rating": 8.6,
+                "release_date": "2014-11-07",
                 "description": "A team of explorers travel through a wormhole in space in an attempt to ensure humanity's survival.",
                 "poster_url": "https://images.unsplash.com/photo-1446776811953-b23d57bd21aa?auto=format&fit=crop&q=80&w=1000",
                 "trailer_url": "https://www.youtube.com/watch?v=zSWdZVtXT7E"
@@ -33,6 +34,7 @@ def populate():
                 "language": "English",
                 "duration": 152,
                 "rating": 9.0,
+                "release_date": "2008-07-18",
                 "description": "When the menace known as the Joker wreaks havoc and chaos on the people of Gotham.",
                 "poster_url": "https://images.unsplash.com/photo-1478720568477-152d9b164e26?auto=format&fit=crop&q=80&w=1000",
                 "trailer_url": "https://www.youtube.com/watch?v=EXeTwQWrcwY"
@@ -43,6 +45,7 @@ def populate():
                 "language": "Korean",
                 "duration": 132,
                 "rating": 8.5,
+                "release_date": "2019-05-30",
                 "description": "Greed and class discrimination threaten the newly formed symbiotic relationship between the wealthy Park family and the destitute Kim clan.",
                 "poster_url": "https://images.unsplash.com/photo-1536440136628-849c177e76a1?auto=format&fit=crop&q=80&w=1000",
                 "trailer_url": "https://www.youtube.com/watch?v=5xH0HfJHsaY"
