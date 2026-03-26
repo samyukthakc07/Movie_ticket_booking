@@ -7,7 +7,22 @@ from movies.models import Show
 from django.db.models import Q
 from django.shortcuts import render
 from django.contrib.auth.decorators import login_required
-from .services import LOCK_WINDOW, release_expired_locks
+from .services import (
+    LOCK_WINDOW,
+    build_booking_request_key,
+    create_pending_booking_for_user,
+    release_expired_locks,
+)
+
+
+def _booking_auth_required_response():
+    return Response(
+        {
+            "status": "auth_required",
+            "message": "Please sign in to book seats.",
+        },
+        status=401,
+    )
 
 
 @api_view(['POST'])
@@ -16,12 +31,15 @@ def reserve_seat(request):
     Concurrency-safe seat reservation with row-level locking.
     Prevents double booking selection within milliseconds.
     """
+    if not request.user.is_authenticated:
+        return _booking_auth_required_response()
+
     seat_id = request.data.get("seat_id")
     show_id = request.data.get("show_id")
-    user_id = request.user.id if request.user.is_authenticated else request.data.get("user_id")
+    user_id = request.user.id
 
-    if not all([seat_id, show_id, user_id]):
-        return Response({"status": "error", "message": "seat_id, show_id and user_id are required."}, status=400)
+    if not all([seat_id, show_id]):
+        return Response({"status": "error", "message": "seat_id and show_id are required."}, status=400)
 
     # Use atomic transaction with select_for_update for row-level locking
     with transaction.atomic():
@@ -128,56 +146,34 @@ def create_booking(request):
     Step 1: Create a 'pending' booking after seat selection.
     Idempotency: Uses client-provided session tokens if necessary, or simply relies on unique seat-show locks.
     """
-    user_id = request.user.id if request.user.is_authenticated else request.data.get("user_id", 1)
+    if not request.user.is_authenticated:
+        return _booking_auth_required_response()
+
     show_id = request.data.get("show_id")
     seat_ids = request.data.get("seat_ids") or []
-    request_key = request.data.get("idempotency_key") or request.session.session_key
+    request_key = request.data.get("idempotency_key") or build_booking_request_key(
+        request.session.session_key,
+        show_id,
+        seat_ids,
+    )
 
-    with transaction.atomic():
-        release_expired_locks()
-        show = Show.objects.select_related('screen').get(id=show_id)
-
-        if not isinstance(seat_ids, list) or not seat_ids:
-            return Response({"error": "seat_ids must be a non-empty list."}, status=400)
-
-        existing_booking = None
-        if request_key:
-            existing_booking = Booking.objects.filter(
-                idempotency_key=request_key,
-                booking_status='pending',
-            ).first()
-        if existing_booking:
-            return Response({
-                "status": "success",
-                "booking_id": existing_booking.id,
-                "total_amount": existing_booking.total_amount,
-            })
-
-        valid_reservations = SeatReservation.objects.select_for_update().filter(
+    try:
+        booking = create_pending_booking_for_user(
+            user=request.user,
             show_id=show_id,
-            seat_id__in=seat_ids,
-            user_id=user_id,
-            status='locked',
-            locked_until__gt=timezone.now(),
-        ).count()
-
-        if valid_reservations != len(seat_ids):
-            return Response({"error": "Some seat reservations expired. Please try again."}, status=400)
-
-        booking = Booking.objects.create(
-            user_id=user_id,
-            show=show,
-            total_amount=show.price * len(seat_ids),
-            booking_status='pending',
-            idempotency_key=request_key,
+            seat_ids=seat_ids,
+            request_key=request_key,
+            allow_lock_creation=False,
         )
-        booking.seats.set(seat_ids)
-        
         return Response({
             "status": "success",
             "booking_id": booking.id,
             "total_amount": booking.total_amount
         })
+    except Show.DoesNotExist:
+        return Response({"error": "Show not found."}, status=404)
+    except ValueError as exc:
+        return Response({"error": str(exc)}, status=400)
 
 def checkout_summary(request, booking_id):
     from django.conf import settings
@@ -202,7 +198,12 @@ def my_bookings(request):
         'show__movie',
         'show__screen__theater',
     ).prefetch_related('seats').order_by('-created_at')
-    return render(request, "my_bookings.html", {"bookings": bookings})
+    return render(request, "my_bookings.html", {
+        "bookings": bookings,
+        "pending_count": bookings.filter(booking_status='pending').count(),
+        "confirmed_count": bookings.filter(booking_status='confirmed').count(),
+        "closed_count": bookings.filter(booking_status__in=['cancelled', 'expired']).count(),
+    })
 
 @login_required
 @api_view(['POST'])

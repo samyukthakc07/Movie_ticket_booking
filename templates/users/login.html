@@ -70,6 +70,17 @@
         margin-bottom: 20px;
         padding: 0;
     }
+
+    .auth-notice {
+        background: rgba(255, 215, 0, 0.12);
+        border: 1px solid rgba(255, 215, 0, 0.35);
+        border-radius: 14px;
+        color: #ffe38a;
+        font-size: 14px;
+        margin-bottom: 22px;
+        padding: 14px 16px;
+        text-align: left;
+    }
 </style>
 {% endblock %}
 
@@ -84,6 +95,21 @@
                 {% csrf_token %}
                 {% if next_url %}
                     <input type="hidden" name="next" value="{{ next_url }}">
+                {% endif %}
+                {% if booking_notice %}
+                    <input type="hidden" name="booking_required" value="1">
+                {% endif %}
+                {% if show_id %}
+                    <input type="hidden" name="show_id" value="{{ show_id }}">
+                {% endif %}
+                {% if seat_ids %}
+                    <input type="hidden" name="seat_ids" value="{{ seat_ids }}">
+                {% endif %}
+
+                {% if booking_notice %}
+                    <div class="auth-notice">
+                        Please sign in to book seats before continuing.
+                    </div>
                 {% endif %}
                 
                 {% if messages %}

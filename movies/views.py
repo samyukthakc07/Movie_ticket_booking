@@ -1,7 +1,7 @@
 from urllib.parse import parse_qs, urlparse
 
 from django.core.paginator import Paginator
-from django.db.models import Count, Exists, OuterRef
+from django.db.models import Count, Exists, OuterRef, Q
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, render
 from django.utils import timezone
@@ -17,6 +17,17 @@ ALLOWED_SORTS = {
     'release_date': 'release_date',
     '-release_date': '-release_date',
 }
+
+THEATER_CARD_IMAGES = [
+    "https://images.unsplash.com/photo-1517604931442-7e0c8ed2963c?auto=format&fit=crop&q=80&w=1200",
+    "https://images.unsplash.com/photo-1489185078244-5a883bb14f11?auto=format&fit=crop&q=80&w=1200",
+    "https://images.unsplash.com/photo-1513106580091-1d82408b8cd6?auto=format&fit=crop&q=80&w=1200",
+    "https://images.unsplash.com/photo-1505685296765-3a2736de412f?auto=format&fit=crop&q=80&w=1200",
+]
+
+
+def _theater_image_for(theater):
+    return THEATER_CARD_IMAGES[(theater.id - 1) % len(THEATER_CARD_IMAGES)]
 
 
 def _base_movie_queryset(search_query):
@@ -113,10 +124,11 @@ def debug_populate(request):
 
 def movie_detail(request, movie_id):
     movie = get_object_or_404(Movie, id=movie_id)
-    shows = Show.objects.filter(
+    shows = list(Show.objects.filter(
         movie=movie,
         show_time__gt=timezone.now(),
     ).select_related('screen__theater').order_by('show_time')
+    )
 
     return render(request, "movie_detail.html", {
         "movie": movie,
@@ -158,12 +170,17 @@ def get_embed_url(url):
 
 @api_view(['GET'])
 def theater_list_api(request):
-    theaters = Theater.objects.all()
+    theaters = Theater.objects.annotate(
+        screen_count=Count('screen', distinct=True),
+        now_showing_count=Count('screen__show', filter=Q(screen__show__show_time__gt=timezone.now()), distinct=True),
+    )
     data = [{
         "id": theater.id,
         "name": theater.name,
         "location": theater.location,
-        "image": "https://images.unsplash.com/photo-1517604401157-538e9663ec1d?auto=format&fit=crop&q=80&w=800",
+        "image": _theater_image_for(theater),
+        "screen_count": theater.screen_count,
+        "now_showing_count": theater.now_showing_count,
     } for theater in theaters]
     return Response(data)
 
@@ -184,4 +201,5 @@ def theater_detail_page(request, theater_id):
     return render(request, "theater_detail.html", {
         "theater": theater,
         "movie_shows": movie_shows.values(),
+        "theater_image": _theater_image_for(theater),
     })

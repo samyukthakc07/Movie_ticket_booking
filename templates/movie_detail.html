@@ -42,7 +42,7 @@
 
     .info-main h1 {
         font-family: 'Playfair Display', serif;
-        font-size: 48px;
+        font-size: clamp(36px, 5vw, 48px);
         margin-bottom: 15px;
     }
 
@@ -106,12 +106,18 @@
             height: auto;
             padding-top: 120px;
             padding-bottom: 40px;
+            border-radius: 0 0 36px 36px;
         }
 
         .hero-content,
         .detail-grid {
             grid-template-columns: 1fr;
             display: grid;
+        }
+
+        .hero-content {
+            gap: 24px;
+            justify-items: start;
         }
 
         .poster-img {
@@ -127,6 +133,36 @@
 
         .booking-card {
             position: static;
+        }
+    }
+
+    @media (max-width: 560px) {
+        .movie-hero {
+            padding-top: 110px;
+        }
+
+        .poster-img {
+            width: 180px;
+            height: 270px;
+        }
+
+        .info-main p {
+            font-size: 16px !important;
+        }
+
+        .sidebar .glass-card a {
+            flex-direction: column;
+            align-items: flex-start !important;
+            gap: 12px;
+        }
+
+        .sidebar .glass-card a > div:last-child {
+            width: 100%;
+            text-align: left !important;
+        }
+
+        .main-info p {
+            font-size: 16px !important;
         }
     }
 </style>

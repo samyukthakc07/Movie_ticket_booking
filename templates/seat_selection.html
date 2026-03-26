@@ -9,6 +9,32 @@
         margin-bottom: 60px;
     }
 
+    .selection-intro {
+        max-width: 920px;
+        margin: 0 auto 36px;
+        display: grid;
+        gap: 16px;
+    }
+
+    .selection-banner {
+        padding: 18px 22px;
+        border-radius: 22px;
+        border: 1px solid var(--glass-border);
+        background: var(--glass);
+    }
+
+    .selection-banner strong {
+        display: block;
+        margin-bottom: 6px;
+    }
+
+    .layout-status {
+        text-align: center;
+        color: var(--text-muted);
+        margin-bottom: 20px;
+        min-height: 24px;
+    }
+
     .screen-stage {
         width: 100%;
         max-width: 800px;
@@ -36,13 +62,13 @@
         display: grid;
         grid-template-columns: repeat(10, 1fr);
         gap: 15px;
-        max-width: 600px;
+        width: min(600px, 100%);
         margin: 0 auto 60px;
     }
 
     .seat {
-        width: 40px;
-        height: 40px;
+        width: 100%;
+        aspect-ratio: 1;
         background: var(--glass);
         border: 1px solid var(--glass-border);
         border-radius: 8px;
@@ -134,21 +160,86 @@
     .price-info h2 { font-size: 24px; }
     .price-info p { font-size: 12px; color: var(--text-muted); }
 
+    .selected-seats-preview {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 10px;
+    }
+
+    .selected-seat-pill {
+        background: rgba(255,255,255,0.08);
+        border: 1px solid rgba(255,255,255,0.12);
+        border-radius: 999px;
+        color: white;
+        font-size: 11px;
+        font-weight: 700;
+        padding: 6px 10px;
+    }
+
+    .booking-flow-hint {
+        margin-top: 10px;
+        max-width: 360px;
+        line-height: 1.5;
+    }
+
     @media (max-width: 760px) {
+        .selection-intro {
+            margin-bottom: 28px;
+        }
+
+        .selection-header {
+            margin-bottom: 42px;
+        }
+
+        .selection-header h1 {
+            font-size: 30px !important;
+        }
+
+        .screen-stage {
+            margin-bottom: 56px;
+        }
+
         .seats-grid {
-            gap: 8px;
+            gap: 6px;
         }
 
         .seat {
-            width: 32px;
-            height: 32px;
-            font-size: 10px;
+            font-size: 9px;
         }
 
         .checkout-bar {
+            bottom: 16px;
+            width: calc(100% - 24px);
             padding: 18px 20px;
             flex-direction: column;
             gap: 16px;
+        }
+    }
+
+    @media (max-width: 480px) {
+        .legend {
+            justify-content: flex-start;
+            gap: 14px;
+        }
+
+        .legend-item {
+            width: calc(50% - 7px);
+            font-size: 12px;
+        }
+
+        .seats-grid {
+            gap: 4px;
+        }
+
+        .seat {
+            font-size: 8px;
+            border-radius: 6px;
+        }
+
+        .timer-pill {
+            width: 100%;
+            justify-content: center;
         }
     }
 </style>
@@ -159,6 +250,20 @@
     <div class="selection-header">
         <h1 id="movieTitle" style="font-family: 'Playfair Display', serif; font-size: 36px; margin-bottom: 10px;">Loading Show...</h1>
         <p id="showMeta" style="color: var(--text-muted); font-size: 16px;">Please wait while we fetch the layout.</p>
+    </div>
+
+    <div class="selection-intro">
+        {% if user.is_authenticated %}
+            <div class="selection-banner">
+                <strong>Reserve now, confirm in My Bookings.</strong>
+                After choosing seats, we&apos;ll send you to <a href="{{ public_app_base_url }}{% url 'my_bookings' %}" style="color: var(--accent); text-decoration: none;">My Bookings</a> so you can confirm or release them there.
+            </div>
+        {% else %}
+            <div class="selection-banner">
+                <strong>Sign in is required before we hold seats.</strong>
+                Pick your seats first. When you continue, we&apos;ll take you to sign in and then place those seats into My Bookings for confirmation.
+            </div>
+        {% endif %}
     </div>
 
     <div class="screen-stage">
@@ -173,6 +278,8 @@
         <div class="legend-item"><div class="seat booked"></div> Sold</div>
     </div>
 
+    <div id="layoutStatus" class="layout-status">Loading live seat availability...</div>
+
     <div id="seatsGrid" class="seats-grid">
         <!-- Dynamic Seats -->
     </div>
@@ -182,13 +289,19 @@
     <div class="price-info">
         <p id="selectedCount">0 Seats Selected</p>
         <h2 id="totalPrice">$0.00</h2>
+        <div id="selectedSeatsPreview" class="selected-seats-preview"></div>
+        <p id="bookingFlowHint" class="booking-flow-hint" style="font-size: 12px; color: var(--text-muted);">
+            Reserved seats will move to My Bookings for final confirmation.
+        </p>
     </div>
 
     <div style="display: flex; align-items: center; gap: 25px; flex-wrap: wrap; justify-content: center;">
         <div class="timer-pill" id="timerPill" style="display: none;">
             <span aria-hidden="true">&#9201;</span> <span id="timerText">02:00</span>
         </div>
-        <button class="btn btn-primary" onclick="proceedToPayment()">Confirm Reservation</button>
+        <button class="btn btn-primary" id="checkoutButton" type="button">
+            {% if user.is_authenticated %}Reserve & Review{% else %}Sign In to Reserve{% endif %}
+        </button>
     </div>
 </div>
 {% endblock %}
@@ -197,12 +310,29 @@
 <script>
     const urlParams = new URLSearchParams(window.location.search);
     const showId = urlParams.get('show_id') || 1;
+    const isAuthenticated = "{{ user.is_authenticated|yesno:'true,false' }}" === "true";
     let selectedSeats = new Map();
     let seatPrice = 0;
     let timerInterval;
 
+    function redirectToLoginForBooking(seatIds = []) {
+        const seatsToRemember = (seatIds.length > 0 ? seatIds : Array.from(selectedSeats.keys()))
+            .map(String)
+            .filter(Boolean);
+        const nextPath = `${window.location.pathname}${window.location.search}`;
+        const query = new URLSearchParams({
+            booking_required: '1',
+            next: nextPath,
+            show_id: String(showId),
+            seat_ids: seatsToRemember.join(',')
+        });
+        window.location.href = `${buildAppUrl("{% url 'login' %}")}?${query.toString()}`;
+    }
+
     async function loadLayout() {
+        const status = document.getElementById('layoutStatus');
         try {
+            status.innerText = 'Loading live seat availability...';
             const response = await fetch(buildBackendUrl(`/api/seat-layout/?show_id=${showId}`), {
                 credentials: 'include',
             });
@@ -222,8 +352,10 @@
                     ${seat.seat_number}
                 </div>
             `).join('');
+            status.innerText = 'Tap seats to reserve them for confirmation.';
         } catch (error) {
             console.error(error);
+            status.innerHTML = 'We could not load seats right now. <button type="button" class="btn" style="padding: 6px 14px; margin-left: 10px; background: var(--glass); color: white;" onclick="loadLayout()">Retry</button>';
         }
     }
 
@@ -239,6 +371,18 @@
         const seatId = element.dataset.id;
         const seatNumber = element.dataset.number;
 
+        if (!isAuthenticated) {
+            if (element.classList.contains('selected')) {
+                element.classList.remove('selected');
+                selectedSeats.delete(seatId);
+            } else {
+                element.classList.add('selected');
+                selectedSeats.set(seatId, seatNumber);
+            }
+            updateBar();
+            return;
+        }
+
         if (element.classList.contains('selected')) {
             element.classList.remove('selected');
             selectedSeats.delete(seatId);
@@ -253,11 +397,15 @@
                     },
                     body: JSON.stringify({
                         seat_id: seatId,
-                        show_id: showId,
-                        user_id: "{{ user.id|default:1 }}"
+                        show_id: showId
                     })
                 });
                 const data = await response.json();
+
+                if (response.status === 401 || data.status === 'auth_required') {
+                    redirectToLoginForBooking([...Array.from(selectedSeats.keys()), seatId]);
+                    return;
+                }
 
                 if (data.status === 'success') {
                     element.classList.add('selected');
@@ -278,13 +426,16 @@
         const bar = document.getElementById('checkoutBar');
         const count = document.getElementById('selectedCount');
         const total = document.getElementById('totalPrice');
+        const preview = document.getElementById('selectedSeatsPreview');
 
         if (selectedSeats.size > 0) {
             bar.classList.add('visible');
             count.innerText = `${selectedSeats.size} Seat${selectedSeats.size > 1 ? 's' : ''} Selected`;
             total.innerText = `$${(selectedSeats.size * seatPrice).toFixed(2)}`;
+            preview.innerHTML = Array.from(selectedSeats.values()).map(seat => `<span class="selected-seat-pill">${seat}</span>`).join('');
         } else {
             bar.classList.remove('visible');
+            preview.innerHTML = '';
             stopTimer();
         }
     }
@@ -320,13 +471,16 @@
     }
 
     async function proceedToPayment() {
-        if ("{{ user.is_authenticated }}" === "False") {
-            const nextPath = `${window.location.pathname}${window.location.search}`;
-            window.location.href = `${buildAppUrl("{% url 'login' %}")}?next=${encodeURIComponent(nextPath)}`;
+        const seatIds = Array.from(selectedSeats.keys());
+        if (seatIds.length === 0) {
+            alert('Please select at least one seat to continue.');
             return;
         }
 
-        const seatIds = Array.from(selectedSeats.keys());
+        if (!isAuthenticated) {
+            redirectToLoginForBooking(seatIds);
+            return;
+        }
 
         try {
             const response = await fetch(buildBackendUrl('/api/create-booking/'), {
@@ -338,14 +492,18 @@
                 },
                 body: JSON.stringify({
                     show_id: showId,
-                    seat_ids: seatIds,
-                    user_id: "{{ user.id }}"
+                    seat_ids: seatIds
                 })
             });
             const data = await response.json();
 
+            if (response.status === 401 || data.status === 'auth_required') {
+                redirectToLoginForBooking(seatIds);
+                return;
+            }
+
             if (data.status === 'success') {
-                window.location.href = buildAppUrl(`/checkout/${data.booking_id}/`);
+                window.location.href = buildAppUrl("{% url 'my_bookings' %}");
             } else {
                 alert(`Error: ${data.error}`);
                 location.reload();
@@ -356,6 +514,9 @@
         }
     }
 
-    window.addEventListener('load', loadLayout);
+    window.addEventListener('load', () => {
+        document.getElementById('checkoutButton').addEventListener('click', proceedToPayment);
+        loadLayout();
+    });
 </script>
 {% endblock %}

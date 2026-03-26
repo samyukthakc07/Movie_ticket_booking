@@ -5,12 +5,13 @@
 {% block extra_css %}
 <style>
     .theater-hero {
-        height: 40vh;
-        background: url('https://images.unsplash.com/photo-1517604401157-538e9663ec1d?auto=format&fit=crop&q=80&w=2000') center/cover;
+        min-height: 40vh;
+        background: url('{{ theater_image }}') center/cover;
         position: relative;
         display: flex;
         align-items: center;
         margin-top: -80px;
+        padding: 130px 0 50px;
     }
 
     .theater-hero::before {
@@ -27,7 +28,7 @@
 
     .hero-content h1 {
         font-family: 'Playfair Display', serif;
-        font-size: 56px;
+        font-size: clamp(36px, 6vw, 56px);
         margin-bottom: 10px;
     }
 
@@ -98,6 +99,35 @@
             grid-template-columns: 1fr;
             gap: 24px;
         }
+
+        .theater-hero {
+            min-height: auto;
+            padding: 120px 0 40px;
+        }
+    }
+
+    @media (max-width: 640px) {
+        .movie-section {
+            margin-top: 36px;
+        }
+
+        .movie-row {
+            padding: 22px;
+            border-radius: 24px;
+        }
+
+        .movie-poster {
+            height: 240px;
+        }
+
+        .showtimes-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+        }
+
+        .showtime-pill {
+            width: 100%;
+        }
     }
 </style>
 {% endblock %}
@@ -138,7 +168,7 @@
         </div>
     </div>
     {% empty %}
-    <div class="glass-card" style="padding: 100px; text-align: center;">
+    <div class="glass-card" style="padding: min(100px, 10vw); text-align: center;">
         <h3 style="color: var(--text-muted);">No movies are currently scheduled at this theater.</h3>
         <a href="{{ public_app_base_url }}/explore/" class="btn btn-primary" style="margin-top: 20px;">Browse All Movies</a>
     </div>

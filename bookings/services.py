@@ -1,4 +1,5 @@
 import logging
+import sys
 import threading
 from datetime import timedelta
 
@@ -10,12 +11,123 @@ from django.template.loader import render_to_string
 from django.utils import timezone
 from django.utils.html import strip_tags
 
-from .models import Booking, EmailDelivery, SeatReservation
+from movies.models import Show
+
+from .models import Booking, EmailDelivery, Seat, SeatReservation
 
 logger = logging.getLogger(__name__)
 
 LOCK_WINDOW = timedelta(minutes=2)
 EMAIL_MAX_ATTEMPTS = 3
+
+
+def _should_send_email_in_background():
+    configured_value = getattr(settings, 'BOOKING_EMAIL_USE_BACKGROUND_THREAD', None)
+    if configured_value is not None:
+        return bool(configured_value)
+
+    return 'test' not in sys.argv
+
+
+def build_booking_request_key(session_key, show_id, seat_ids):
+    if not session_key:
+        return None
+
+    normalized_seats = ",".join(str(seat_id) for seat_id in sorted(_normalize_seat_ids(seat_ids)))
+    return f"booking:{session_key}:{show_id}:{normalized_seats}"
+
+
+def _normalize_seat_ids(seat_ids):
+    normalized = []
+    seen = set()
+
+    for seat_id in seat_ids or []:
+        try:
+            parsed_id = int(str(seat_id))
+        except (TypeError, ValueError):
+            continue
+
+        if parsed_id in seen:
+            continue
+
+        seen.add(parsed_id)
+        normalized.append(parsed_id)
+
+    return normalized
+
+
+def create_pending_booking_for_user(user, show_id, seat_ids, request_key=None, allow_lock_creation=False):
+    normalized_seat_ids = _normalize_seat_ids(seat_ids)
+    if not normalized_seat_ids:
+        raise ValueError("seat_ids must be a non-empty list.")
+
+    with transaction.atomic():
+        release_expired_locks()
+
+        show = Show.objects.select_for_update().select_related('screen').get(id=show_id)
+        seats = list(
+            Seat.objects.select_for_update()
+            .filter(id__in=normalized_seat_ids, screen=show.screen)
+            .order_by('seat_number')
+        )
+
+        if len(seats) != len(normalized_seat_ids):
+            raise ValueError("Some selected seats do not belong to this show.")
+
+        if request_key:
+            existing_booking = Booking.objects.filter(
+                idempotency_key=request_key,
+                booking_status='pending',
+                user=user,
+                show=show,
+            ).first()
+            if existing_booking:
+                return existing_booking
+
+        active_reservations = {
+            reservation.seat_id: reservation
+            for reservation in SeatReservation.objects.select_for_update().filter(
+                show=show,
+                seat_id__in=normalized_seat_ids,
+                status__in=['locked', 'booked'],
+            )
+        }
+
+        lock_time = timezone.now() + LOCK_WINDOW
+        for seat in seats:
+            reservation = active_reservations.get(seat.id)
+
+            if reservation and reservation.status == 'booked':
+                raise ValueError(f"Seat {seat.seat_number} is already booked.")
+
+            if reservation and reservation.user_id != user.id and reservation.locked_until > timezone.now():
+                raise ValueError(f"Seat {seat.seat_number} is currently reserved by another user.")
+
+            if reservation and reservation.user_id == user.id and reservation.status == 'locked':
+                reservation.locked_until = lock_time
+                reservation.save(update_fields=['locked_until'])
+                continue
+
+            if not allow_lock_creation:
+                raise ValueError("Some seat reservations expired. Please try again.")
+
+            SeatReservation.objects.create(
+                seat=seat,
+                show=show,
+                user=user,
+                status='locked',
+                locked_until=lock_time,
+            )
+
+        booking = Booking.objects.create(
+            user=user,
+            show=show,
+            total_amount=show.price * len(normalized_seat_ids),
+            booking_status='pending',
+            idempotency_key=request_key,
+        )
+        booking.seats.set(normalized_seat_ids)
+        return booking
 
 
 def release_expired_locks():
@@ -80,9 +192,11 @@ def queue_booking_confirmation_email(booking):
         delivery.last_error = ''
         delivery.save(update_fields=['subject', 'status', 'next_retry_at', 'last_error', 'updated_at'])
 
-    # Trigger background delivery for "background queue" requirement
-    thread = threading.Thread(target=send_due_email_deliveries)
-    thread.start()
+    if _should_send_email_in_background():
+        thread = threading.Thread(target=send_due_email_deliveries, daemon=True)
+        thread.start()
+    else:
+        send_due_email_deliveries()
 
     return delivery
 

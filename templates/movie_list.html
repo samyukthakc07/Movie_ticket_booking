@@ -195,6 +195,21 @@
             width: 100%;
         }
     }
+
+    @media (max-width: 560px) {
+        .movie-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .movie-poster,
+        .loading-shimmer {
+            height: 300px;
+        }
+
+        #movieCount {
+            line-height: 1.5;
+        }
+    }
 </style>
 {% endblock %}
 
